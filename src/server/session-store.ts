@@ -30,6 +30,13 @@ export async function getSession(sessionId: string): Promise<ZapBattleSession | 
   return sessions().get(sessionId) ?? null;
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  if (nostrSessionStorageEnabled()) {
+    await publishNostrSessionDeletion(sessionId);
+  }
+  sessions().delete(sessionId);
+}
+
 export async function saveSession(session: ZapBattleSession): Promise<ZapBattleSession> {
   if (nostrSessionStorageEnabled()) {
     await publishNostrSession(session);
@@ -63,9 +70,36 @@ async function getNostrSession(sessionId: string): Promise<ZapBattleSession | nu
     });
     if (!event || !verifyEvent(event)) return null;
     const parsed = JSON.parse(event.content) as unknown;
+    if (isDeletedSession(parsed, sessionId)) return null;
     return normalizeSession(parsed, sessionId);
   } catch {
     return null;
+  } finally {
+    pool.close(readSessionRelays());
+  }
+}
+
+async function publishNostrSessionDeletion(sessionId: string): Promise<void> {
+  const privateKey = readServicePrivateKey();
+  if (!privateKey) return;
+  const event = finalizeEvent({
+    kind: SESSION_KIND,
+    created_at: currentSeconds(),
+    content: JSON.stringify({
+      id: sessionId,
+      deleted: true,
+      deletedAt: currentSeconds()
+    }),
+    tags: [
+      ["d", sessionDTag(sessionId)],
+      ["type", "zap_battle_session"],
+      ["client", "zap-battle"],
+      ["t", "zapbattle"]
+    ]
+  }, privateKey);
+  const pool = new SimplePool();
+  try {
+    await Promise.any(pool.publish(readSessionRelays(), event));
   } finally {
     pool.close(readSessionRelays());
   }
@@ -92,6 +126,17 @@ async function publishNostrSession(session: ZapBattleSession): Promise<void> {
   } finally {
     pool.close(readSessionRelays());
   }
+}
+
+function isDeletedSession(value: unknown, sessionId: string): boolean {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    "deleted" in value &&
+    (value as { deleted?: unknown; id?: unknown }).deleted === true &&
+    (value as { id?: unknown }).id === sessionId
+  );
 }
 
 function sessionDTag(sessionId: string): string {

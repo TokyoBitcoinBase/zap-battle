@@ -5,14 +5,24 @@ export type ZapLiveTokenPayload = {
   sessionId: string;
   side: BattleSide;
   recipientPubkey?: string | undefined;
-  lightningAddress: string;
-  displayName: string;
-  relays: string[];
+  lightningAddress?: string | undefined;
+  displayName?: string | undefined;
+  relays?: string[] | undefined;
   expiresAt: number;
 };
 
+type CompactZapLiveTokenPayload = {
+  i: string;
+  s: "l" | "r";
+  p?: string | undefined;
+  a?: string | undefined;
+  n?: string | undefined;
+  r?: string[] | undefined;
+  e: number;
+};
+
 export function signZapLiveToken(payload: ZapLiveTokenPayload): string {
-  const body = base64UrlEncode(JSON.stringify(payload));
+  const body = base64UrlEncode(JSON.stringify(compactPayload(payload)));
   const signature = signBody(body);
   return `${body}.${signature}`;
 }
@@ -22,11 +32,40 @@ export function verifyZapLiveToken(token: string): ZapLiveTokenPayload {
   if (!body || !signature) throw new Error("Invalid token.");
   const expected = signBody(body);
   if (!safeEqual(signature, expected)) throw new Error("Invalid token signature.");
-  const payload = JSON.parse(base64UrlDecode(body)) as ZapLiveTokenPayload;
+  const payload = expandPayload(JSON.parse(base64UrlDecode(body)) as Partial<ZapLiveTokenPayload> | CompactZapLiveTokenPayload);
   if (payload.expiresAt < currentSeconds()) throw new Error("Token expired.");
   if (payload.side !== "left" && payload.side !== "right") throw new Error("Invalid side.");
-  if (!payload.sessionId || !payload.lightningAddress || !payload.displayName) throw new Error("Invalid token payload.");
+  if (!payload.sessionId) throw new Error("Invalid token payload.");
   return payload;
+}
+
+function compactPayload(payload: ZapLiveTokenPayload): CompactZapLiveTokenPayload {
+  const compact: CompactZapLiveTokenPayload = {
+    i: payload.sessionId,
+    s: payload.side === "left" ? "l" : "r",
+    e: payload.expiresAt
+  };
+  if (payload.recipientPubkey) compact.p = payload.recipientPubkey;
+  if (payload.lightningAddress) compact.a = payload.lightningAddress;
+  if (payload.displayName) compact.n = payload.displayName;
+  if (payload.relays) compact.r = payload.relays;
+  return compact;
+}
+
+function expandPayload(payload: Partial<ZapLiveTokenPayload> | CompactZapLiveTokenPayload): ZapLiveTokenPayload {
+  if ("i" in payload) {
+    return {
+      sessionId: payload.i,
+      side: payload.s === "l" ? "left" : "right",
+      recipientPubkey: payload.p,
+      lightningAddress: payload.a,
+      displayName: payload.n,
+      relays: payload.r,
+      expiresAt: payload.e
+    };
+  }
+
+  return payload as ZapLiveTokenPayload;
 }
 
 function signBody(body: string): string {

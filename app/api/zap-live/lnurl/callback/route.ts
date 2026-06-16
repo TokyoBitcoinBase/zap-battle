@@ -4,6 +4,8 @@ import { encodeLnurl } from "@/src/lnurl";
 import { fetchLnurlPayMetadata, resolveLnurlPayUrl } from "@/src/server/lnurl";
 import { verifyZapLiveToken } from "@/src/server/lnurl-token";
 import { readServicePrivateKey, readServicePubkey } from "@/src/server/service-key";
+import { ensureSession } from "@/src/server/session-store";
+import { zapRequestRelaysFromEnv } from "@/src/relays";
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token") ?? "";
@@ -14,7 +16,11 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ status: "ERROR", reason: "Invalid amount." }, { status: 400 });
     }
-    if (!payload.recipientPubkey) {
+    const session = await ensureSession(payload.sessionId);
+    const contestant = session.contestants[payload.side];
+    const lightningAddress = payload.lightningAddress || contestant.lightningAddress;
+    const recipientPubkey = payload.recipientPubkey || contestant.nostrPubkey;
+    if (!recipientPubkey) {
       return NextResponse.json({ status: "ERROR", reason: "Recipient Nostr pubkey is required." }, { status: 400 });
     }
     const servicePrivateKey = readServicePrivateKey();
@@ -23,7 +29,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ status: "ERROR", reason: "Service signing key is not configured." }, { status: 500 });
     }
 
-    const targetLnurlPayUrl = resolveLnurlPayUrl(payload.lightningAddress);
+    const targetLnurlPayUrl = resolveLnurlPayUrl(lightningAddress);
     const targetMetadata = await fetchLnurlPayMetadata(targetLnurlPayUrl);
     if (targetMetadata.allowsNostr !== true || !targetMetadata.nostrPubkey) {
       return NextResponse.json({ status: "ERROR", reason: "Recipient wallet does not support Nostr zaps." }, { status: 400 });
@@ -37,10 +43,10 @@ export async function GET(request: NextRequest) {
       created_at: currentSeconds(),
       content: comment,
       tags: [
-        ["relays", ...payload.relays],
+        ["relays", ...(payload.relays || readPublicRelays())],
         ["amount", String(Math.round(amount))],
         ["lnurl", encodeLnurl(targetLnurlPayUrl)],
-        ["p", payload.recipientPubkey],
+        ["p", recipientPubkey],
         ["zap_live", payload.sessionId],
         ["zap_live_side", payload.side],
         ["client", "zap-battle"]
@@ -69,4 +75,8 @@ export async function GET(request: NextRequest) {
 
 function currentSeconds(): number {
   return Math.floor(Date.now() / 1000);
+}
+
+function readPublicRelays(): string[] {
+  return zapRequestRelaysFromEnv(process.env.NEXT_PUBLIC_ZAP_REQUEST_RELAYS, process.env.ZAP_REQUEST_RELAYS);
 }

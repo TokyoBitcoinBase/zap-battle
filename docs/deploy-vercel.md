@@ -17,6 +17,7 @@ Required later for production:
 TOKEN_SECRET=
 ADMIN_TOKEN=
 SERVICE_PRIVATE_KEY=
+SERVICE_NSEC=
 NOSTR_SESSION_RELAYS=wss://yabu.me,wss://relay.primal.net,wss://relay.damus.io,wss://nos.lol
 NEXT_PUBLIC_NOSTR_SESSION_RELAYS=wss://yabu.me,wss://relay.primal.net,wss://relay.damus.io,wss://nos.lol
 ZAP_REQUEST_RELAYS=wss://yabu.me,wss://relay.primal.net,wss://nos.lol
@@ -60,7 +61,7 @@ src/server/session-store.ts
 
 This project intentionally avoids an app DB for battle/session configuration.
 
-If `SERVICE_PRIVATE_KEY` is not set, the local development server falls back to in-memory sessions. In production, set `SERVICE_PRIVATE_KEY` so session changes are published to Nostr relays as `kind:30078` events.
+If neither `SERVICE_PRIVATE_KEY` nor `SERVICE_NSEC` is set, the local development server falls back to in-memory sessions. In production, set `SERVICE_PRIVATE_KEY` or `SERVICE_NSEC` so session changes are published to Nostr relays as `kind:30078` events.
 
 ## Vercel Flow
 
@@ -89,4 +90,4 @@ Current implementation note:
 - `/api/zap-live/token` is implemented.
 - `/api/zap-live/lnurl` is implemented.
 - `/api/zap-live/lnurl/callback` fetches the recipient LNURL Pay metadata, creates a signed Zap request, and forwards the invoice request to the recipient wallet callback.
-- Callback forwarding requires `SERVICE_PRIVATE_KEY`.
+- Callback forwarding requires `SERVICE_PRIVATE_KEY` or `SERVICE_NSEC`.

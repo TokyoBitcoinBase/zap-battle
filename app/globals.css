@@ -151,11 +151,69 @@ select {
   text-transform: uppercase;
 }
 
+.timer-badge {
+  align-items: center;
+  background: rgba(7, 8, 19, 0.82);
+  border: 1px solid rgba(255, 210, 56, 0.45);
+  border-radius: 8px;
+  box-shadow: 0 0 24px rgba(255, 210, 56, 0.12);
+  display: inline-grid;
+  gap: 2px;
+  margin-top: 6px;
+  min-width: 86px;
+  padding: 5px 8px 6px;
+}
+
+.timer-badge span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.timer-badge strong {
+  color: var(--gold);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: clamp(18px, 2vw, 24px);
+  font-weight: 1000;
+  line-height: 0.96;
+  text-shadow: 0 0 16px rgba(255, 210, 56, 0.62);
+}
+
+.timer-badge.urgent {
+  border-color: rgba(255, 62, 136, 0.72);
+  box-shadow: 0 0 30px rgba(255, 62, 136, 0.22);
+}
+
+.timer-badge.urgent strong {
+  color: #ff6fa6;
+  text-shadow: 0 0 24px rgba(255, 62, 136, 0.78);
+}
+
 .top-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.display-admin-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.display-admin-actions span {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 900;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status {
@@ -211,6 +269,12 @@ select {
   background: rgba(255, 210, 56, 0.13);
   border-color: rgba(255, 210, 56, 0.42);
   color: var(--gold);
+}
+
+.button.danger {
+  background: rgba(255, 62, 136, 0.10);
+  border-color: rgba(255, 62, 136, 0.52);
+  color: #ff8eb8;
 }
 
 .page {
@@ -407,6 +471,12 @@ select {
   margin: 16px 0;
 }
 
+.admin-danger-actions {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .inline-actions {
   display: flex;
   flex-wrap: wrap;
@@ -553,19 +623,20 @@ select {
 
 .qr-frame {
   background: #ffffff;
-  border: 6px solid #f4f0ff;
-  border-radius: 12px;
+  border: 8px solid #ffffff;
+  border-radius: 8px;
   box-shadow: 0 22px 46px rgba(0, 0, 0, 0.42), 0 0 30px rgba(255, 210, 56, 0.12);
   display: grid;
-  height: clamp(150px, 19vw, 220px);
+  height: clamp(220px, 26vw, 360px);
   place-items: center;
   position: relative;
-  width: clamp(150px, 19vw, 220px);
+  width: clamp(220px, 26vw, 360px);
 }
 
 .qr-frame img {
   display: block;
   height: 100%;
+  image-rendering: pixelated;
   width: 100%;
 }
 
@@ -576,29 +647,25 @@ select {
   text-transform: uppercase;
 }
 
-.qr-badge {
-  align-items: center;
-  background: #ffffff;
-  border: 2px solid #f4a261;
-  border-radius: 999px;
-  color: #17120a;
-  display: grid;
-  font-size: 20px;
-  height: 38px;
-  left: 50%;
-  place-items: center;
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 38px;
-}
-
 .scan-label {
   color: var(--muted);
   font-size: 13px;
   font-weight: 1000;
   margin-top: 9px;
   text-transform: uppercase;
+}
+
+.lightning-address {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 900;
+  margin-top: 7px;
+  max-width: min(100%, 420px);
+  opacity: 0.78;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .total-card {
@@ -654,7 +721,7 @@ select {
   display: grid;
   gap: 12px;
   justify-items: center;
-  min-height: 220px;
+  min-height: 120px;
   text-align: center;
 }
 
@@ -913,6 +980,10 @@ select {
 
   .top-actions {
     justify-content: flex-start;
+  }
+
+  .display-admin-actions {
+    flex-wrap: wrap;
   }
 
   .arena {

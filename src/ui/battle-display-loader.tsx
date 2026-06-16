@@ -82,7 +82,7 @@ export function BattleDisplayLoader({ adminEnabled = false, sessionId }: { admin
     );
   }
 
-  return <BattleDisplay adminEnabled={adminEnabled} session={session} />;
+  return <BattleDisplay adminEnabled={adminEnabled} onSessionChange={setSession} session={session} />;
 }
 
 function adminHeaders(adminToken: string): HeadersInit {

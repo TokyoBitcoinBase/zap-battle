@@ -46,7 +46,11 @@ const COPY = {
     tiedBattle: "Tied Battle",
     bothSidesLevel: "Both sides finished level.",
     realtimeZaps: "Realtime Zaps",
-    avgSats: "avg sats"
+    avgSats: "avg sats",
+    finalizing: "Finalizing",
+    overtime: "Overtime",
+    ready: "Ready",
+    timeLeft: "Time Left"
   },
   ja: {
     admin: "管理",
@@ -72,20 +76,41 @@ const COPY = {
     tiedBattle: "同点バトル",
     bothSidesLevel: "両者同点で終了しました。",
     realtimeZaps: "リアルタイムZap",
-    avgSats: "平均sats"
+    avgSats: "平均sats",
+    finalizing: "集計中",
+    overtime: "延長",
+    ready: "開始待ち",
+    timeLeft: "残り時間"
   }
 } satisfies Record<Locale, Record<string, string>>;
 
-export function BattleDisplay({ adminEnabled = false, session }: { adminEnabled?: boolean; session: ZapBattleSession }) {
+type SessionResponse = {
+  session: ZapBattleSession;
+  errors?: string[];
+};
+
+export function BattleDisplay({
+  adminEnabled = false,
+  onSessionChange,
+  session
+}: {
+  adminEnabled?: boolean;
+  onSessionChange?(session: ZapBattleSession): void;
+  session: ZapBattleSession;
+}) {
   const [items, setItems] = useState<ZapReceiptItem[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const [adminOpen, setAdminOpen] = useState(false);
+  const [adminActionStatus, setAdminActionStatus] = useState("");
+  const [adminWorking, setAdminWorking] = useState(false);
+  const [hasAdminToken, setHasAdminToken] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
   const seenReceiptIdsRef = useRef<Set<string>>(new Set());
   const latestReceiptCreatedAtRef = useRef(0);
   const previousCountRef = useRef(0);
+  const previousStartsAtRef = useRef<number | null>(session.startsAt);
   const celebrationTimerRef = useRef<number | undefined>(undefined);
   const finalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : null;
   const displayItems = finalItems ?? items;
@@ -117,6 +142,23 @@ export function BattleDisplay({ adminEnabled = false, session }: { adminEnabled?
     triggerCelebration(soundEnabled);
     return () => window.clearTimeout(celebrationTimerRef.current);
   }, [items.length, soundEnabled]);
+
+  useEffect(() => {
+    if (session.startsAt && session.status !== "draft") return;
+    seenReceiptIdsRef.current.clear();
+    latestReceiptCreatedAtRef.current = 0;
+    previousCountRef.current = 0;
+    setItems([]);
+  }, [session.startsAt, session.status]);
+
+  useEffect(() => {
+    if (previousStartsAtRef.current === session.startsAt) return;
+    previousStartsAtRef.current = session.startsAt;
+    seenReceiptIdsRef.current.clear();
+    latestReceiptCreatedAtRef.current = 0;
+    previousCountRef.current = 0;
+    setItems([]);
+  }, [session.startsAt]);
 
   useEffect(() => {
     if (!session.startsAt) return;
@@ -186,6 +228,18 @@ export function BattleDisplay({ adminEnabled = false, session }: { adminEnabled?
     if (stored === "ja" || stored === "en") setLocale(stored);
   }, []);
 
+  useEffect(() => {
+    if (!adminEnabled) return;
+    const syncAdminToken = () => setHasAdminToken(Boolean(currentAdminToken(session.id)));
+    syncAdminToken();
+    const intervalId = window.setInterval(syncAdminToken, 1000);
+    window.addEventListener("focus", syncAdminToken);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", syncAdminToken);
+    };
+  }, [adminEnabled, session.id]);
+
   function addDemoZap(side: BattleSide) {
     const amount = [500, 1000, 2100, 3000, 5000][Math.floor(Math.random() * 5)] ?? 1000;
     const names = ["anonymous", "bboy", "bgirl", "npub...dance", "floor side"];
@@ -220,6 +274,51 @@ export function BattleDisplay({ adminEnabled = false, session }: { adminEnabled?
       localStorage.setItem("zap-battle:locale", next);
       return next;
     });
+  }
+
+  function toggleSound() {
+    setSoundEnabled((current) => {
+      const next = !current;
+      if (next) void primeZapSound();
+      return next;
+    });
+  }
+
+  async function startBattle() {
+    await postAdminAction("start", undefined);
+  }
+
+  async function endBattle() {
+    const confirmed = window.confirm("End this battle now? The timer will keep running unless you confirm.");
+    if (!confirmed) return;
+    const receipts = session.startsAt
+      ? await fetchZapReceiptsOnce({ session, since: Math.max(0, session.startsAt - 60), maxWait: 3500 })
+      : [];
+    await postAdminAction("end", {
+      finalResult: createFinalResult(receipts)
+    });
+  }
+
+  async function postAdminAction(action: "start" | "end", body: unknown) {
+    setAdminWorking(true);
+    setAdminActionStatus(action === "start" ? "Starting..." : "Ending...");
+    try {
+      const adminToken = currentAdminToken(session.id);
+      const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(session.id)}/${action}`, {
+        method: "POST",
+        headers: adminHeaders(adminToken),
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const json = await response.json() as SessionResponse;
+      if (!response.ok) throw new Error(json.errors?.join(" / ") || "Admin action failed.");
+      onSessionChange?.(json.session);
+      setAdminActionStatus(action === "start" ? "Started" : "Ended");
+      window.setTimeout(() => setAdminActionStatus(""), 1600);
+    } catch (error) {
+      setAdminActionStatus(error instanceof Error ? error.message : "Admin action failed.");
+    } finally {
+      setAdminWorking(false);
+    }
   }
 
   return (
@@ -262,19 +361,31 @@ export function BattleDisplay({ adminEnabled = false, session }: { adminEnabled?
                 ? `${displayContestantName(session.contestants.left)} ${copy.leads}`
                 : `${displayContestantName(session.contestants.right)} ${copy.leads}`}
           </p>
+          <BattleTimer session={session} copy={copy} />
         </div>
 
         <div className="top-actions">
           <button className="button" type="button" onClick={toggleLocale}>
             {locale === "en" ? "日本語" : "English"}
           </button>
-          <button className="button gold" type="button" onClick={() => setSoundEnabled((current) => !current)}>
+          <button className="button gold" type="button" onClick={toggleSound}>
             {copy.sound} {soundEnabled ? "On" : "Off"}
           </button>
           {adminEnabled ? (
             <button className="button" type="button" onClick={() => setAdminOpen(true)}>
               {copy.admin}
             </button>
+          ) : null}
+          {adminEnabled && hasAdminToken ? (
+            <div className="display-admin-actions">
+              <button className="button gold" type="button" onClick={() => void startBattle()} disabled={adminWorking || session.status === "live"}>
+                Start
+              </button>
+              <button className="button" type="button" onClick={() => void endBattle()} disabled={adminWorking || session.status === "ended"}>
+                End
+              </button>
+              {adminActionStatus ? <span>{adminActionStatus}</span> : null}
+            </div>
           ) : null}
           <div className={`status ${session.status === "live" ? "live" : ""}`}>
             <span className="status-dot" aria-hidden="true" />
@@ -292,7 +403,7 @@ export function BattleDisplay({ adminEnabled = false, session }: { adminEnabled?
                 {copy.close}
               </button>
             </div>
-            <BattleAdminEditor compact sessionId={session.id} />
+            <BattleAdminEditor compact locale={locale} sessionId={session.id} />
           </div>
         </div>
       ) : null}
@@ -439,9 +550,9 @@ function ContestantStage({
         setQrStatus("");
         const payload = await qrPayloadForContestant(sessionId, contestant);
         const dataUrl = await QRCode.toDataURL(payload, {
-          errorCorrectionLevel: "M",
-          margin: 1,
-          width: 320,
+          errorCorrectionLevel: "L",
+          margin: 2,
+          width: 640,
           color: {
             dark: "#050505",
             light: "#ffffff"
@@ -475,9 +586,9 @@ function ContestantStage({
         <div className="qr-frame">
           {qrDataUrl ? <img src={qrDataUrl} alt={`${displayContestantName(contestant)} QR`} /> : null}
           {!qrDataUrl ? <span className="qr-empty">{qrStatus || "QR"}</span> : null}
-          <span className="qr-badge" aria-hidden="true">₿</span>
         </div>
         <div className="scan-label">{copy.scanToZap} ⚡</div>
+        <div className="lightning-address">{contestant.lightningAddress || copy.lightningMissing}</div>
       </div>
 
       <div>
@@ -493,7 +604,6 @@ function ContestantStage({
 
         <div className="profile-empty">
           <div className="profile-icon" aria-hidden="true">♟</div>
-          <p>{contestant.lightningAddress || copy.lightningMissing}</p>
           {showDemoControls ? (
             <button className="button primary" type="button" onClick={onDemoZap}>
               {copy.demoZap}
@@ -502,6 +612,25 @@ function ContestantStage({
         </div>
       </div>
     </article>
+  );
+}
+
+function BattleTimer({ session, copy }: { session: ZapBattleSession; copy: typeof COPY[Locale] }) {
+  const [now, setNow] = useState(() => currentSeconds());
+
+  useEffect(() => {
+    if (session.status === "ended") return;
+    const intervalId = window.setInterval(() => setNow(currentSeconds()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [session.status]);
+
+  const timer = timerState(session, now, copy);
+
+  return (
+    <div className={`timer-badge ${timer.phase}`} aria-live="polite">
+      <span>{timer.label}</span>
+      <strong>{timer.value}</strong>
+    </div>
   );
 }
 
@@ -521,6 +650,40 @@ async function qrPayloadForContestant(sessionId: string, contestant: Contestant)
   return encodeLnurl(json.lnurlPayUrl);
 }
 
+function timerState(session: ZapBattleSession, now: number, copy: typeof COPY[Locale]): { label: string; value: string; phase: string } {
+  if (session.status === "ended") {
+    return { label: copy.finalResult, value: "00:00", phase: "ended" };
+  }
+
+  if (!session.startsAt || session.status !== "live") {
+    return { label: copy.ready, value: formatDuration(session.durationSeconds), phase: "ready" };
+  }
+
+  const endAt = session.startsAt + session.durationSeconds;
+  const remaining = endAt - now;
+  if (remaining > 0) {
+    return { label: copy.timeLeft, value: formatDuration(remaining), phase: remaining <= 30 ? "urgent" : "live" };
+  }
+
+  const overtimeRemaining = endAt + session.graceSeconds - now;
+  if (overtimeRemaining > 0) {
+    return { label: copy.overtime, value: formatDuration(overtimeRemaining), phase: "urgent" };
+  }
+
+  return { label: copy.finalizing, value: "00:00", phase: "urgent" };
+}
+
+function formatDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.ceil(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function currentSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
 function displayContestantName(contestant: Contestant): string {
   if (contestant.displayName.trim()) return contestant.displayName.trim();
   return contestant.side === "left" ? "PLAYER 1" : "PLAYER 2";
@@ -534,6 +697,45 @@ function calculateStats(items: ZapReceiptItem[], side: BattleSide) {
     totalSats,
     averageSats: sideItems.length > 0 ? Math.round(totalSats / sideItems.length) : 0
   };
+}
+
+function createFinalResult(receipts: ZapReceiptItem[]) {
+  const normalized = receipts
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const left = calculateStats(normalized, "left");
+  const right = calculateStats(normalized, "right");
+  const winner = left.totalSats === right.totalSats
+    ? "tied"
+    : left.totalSats > right.totalSats
+      ? "left"
+      : "right";
+  return {
+    capturedAt: currentSeconds(),
+    winner,
+    left,
+    right,
+    receipts: normalized.slice(0, 80)
+  };
+}
+
+function adminHeaders(adminToken: string): HeadersInit {
+  return {
+    "content-type": "application/json",
+    ...(adminToken.trim() ? { "x-admin-token": adminToken.trim() } : {})
+  };
+}
+
+function currentAdminToken(sessionId: string): string {
+  return localStorage.getItem(adminTokenStorageKey(sessionId)) ?? localStorage.getItem(globalAdminTokenStorageKey()) ?? "";
+}
+
+function adminTokenStorageKey(sessionId: string): string {
+  return `zap-battle:admin-token:${sessionId}`;
+}
+
+function globalAdminTokenStorageKey(): string {
+  return "zap-battle:admin-token";
 }
 
 function createConfetti(): ConfettiPiece[] {
@@ -578,6 +780,14 @@ function playZapSound() {
   });
 
   window.setTimeout(() => void context.close(), 700);
+}
+
+async function primeZapSound() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  const context = new AudioContextClass();
+  if (context.state === "suspended") await context.resume().catch(() => undefined);
+  await context.close().catch(() => undefined);
 }
 
 declare global {

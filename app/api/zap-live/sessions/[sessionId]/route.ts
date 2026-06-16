@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/server/admin-auth";
-import { ensureSession, getSession, saveSession } from "@/src/server/session-store";
+import { deleteSession, ensureSession, getSession, saveSession } from "@/src/server/session-store";
 import { normalizeSession } from "@/src/session-validation";
 
 type RouteContext = {
@@ -32,4 +32,12 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   const session = normalizeSession({ ...existing, ...body, id: sessionId }, sessionId);
   await saveSession(session);
   return NextResponse.json({ session });
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const unauthorized = requireAdmin(request);
+  if (unauthorized) return unauthorized;
+  const { sessionId } = await context.params;
+  await deleteSession(sessionId);
+  return NextResponse.json({ deleted: true });
 }
