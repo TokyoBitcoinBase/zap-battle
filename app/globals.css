@@ -671,16 +671,6 @@ select {
   width: 100%;
 }
 
-.side.left .total-card {
-  margin-left: 0;
-  margin-right: auto;
-}
-
-.side.right .total-card {
-  margin-left: auto;
-  margin-right: 0;
-}
-
 .total-card h3 {
   color: var(--muted);
   font-size: 12px;

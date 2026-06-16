@@ -20,10 +20,10 @@ const ADMIN_COPY = {
     createTempFailed: "Could not create temporary Nostr profile.",
     createTempMissing: "Display name and Lightning Address are required for instant creation.",
     createTempSaved: "Temporary Nostr profile created and saved to the session.",
-    deleteConfirm: "Delete this session data? The public display will become not configured. The URL route itself will still exist.",
-    deleteFailed: "Could not delete session.",
-    deleteSaved: "Session data deleted. The public display is now not configured.",
-    deleting: "Deleting session...",
+    deleteConfirm: "Delete the data for this display URL? The public display will become not configured. The URL route itself will still exist.",
+    deleteFailed: "Could not delete URL data.",
+    deleteSaved: "Display URL data deleted. The public display is now not configured.",
+    deleting: "Deleting URL data...",
     loadingFailed: "Could not load session.",
     resetConfirm: "Reset everything? Player info, Lightning Addresses, timer, and results will be cleared.",
     resetting: "Resetting...",
@@ -45,10 +45,10 @@ const ADMIN_COPY = {
     createTempFailed: "一時Nostrプロフィールを作成できませんでした。",
     createTempMissing: "インスタント作成には表示名とLightning Addressが必要です。",
     createTempSaved: "一時Nostrプロフィールを作成し、セッションへ保存しました。",
-    deleteConfirm: "このセッションデータを削除しますか？公開表示は未設定に戻ります。URLのルート自体は残ります。",
-    deleteFailed: "セッションを削除できませんでした。",
-    deleteSaved: "セッションデータを削除しました。公開表示は未設定になりました。",
-    deleting: "セッションを削除しています...",
+    deleteConfirm: "この表示URLのデータを削除しますか？公開表示は未設定に戻ります。URLのルート自体は残ります。",
+    deleteFailed: "URLデータを削除できませんでした。",
+    deleteSaved: "表示URLのデータを削除しました。公開表示は未設定になりました。",
+    deleting: "URLデータを削除しています...",
     loadingFailed: "セッションを読み込めませんでした。",
     resetConfirm: "すべてリセットしますか？参加者情報、Lightning Address、タイマー、集計が消えます。",
     resetting: "リセットしています...",
@@ -325,9 +325,10 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
                 inputMode="numeric"
                 min={0}
                 onFocus={(event) => event.currentTarget.select()}
-                onChange={(event) => updateDuration(setSession, setDurationDraft, "minutes", event.target.value)}
+                onChange={(event) => updateDuration(setSession, setDurationDraft, durationDraft, "minutes", event.target.value)}
                 placeholder="10"
-                type="number"
+                pattern="[0-9]*"
+                type="text"
                 value={durationDraft.minutes}
               />
               <input
@@ -335,9 +336,10 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
                 max={59}
                 min={0}
                 onFocus={(event) => event.currentTarget.select()}
-                onChange={(event) => updateDuration(setSession, setDurationDraft, "seconds", event.target.value)}
+                onChange={(event) => updateDuration(setSession, setDurationDraft, durationDraft, "seconds", event.target.value)}
                 placeholder="seconds"
-                type="number"
+                pattern="[0-9]*"
+                type="text"
                 value={durationDraft.seconds}
               />
             </div>
@@ -377,10 +379,10 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
         </button>
         <div className="admin-danger-actions">
           <button className="button danger" type="button" onClick={() => void resetBattle()} disabled={saving}>
-            Reset
+            All Reset
           </button>
           <button className="button danger" type="button" onClick={() => void deleteBattleSession()} disabled={saving}>
-            Delete session
+            Delete URL Data
           </button>
         </div>
       </section>
@@ -430,10 +432,10 @@ function ContestantForm({
       </label>
       <div className="inline-actions">
         <button className="button gold" type="button" onClick={onCreateTemporaryProfile} disabled={working}>
-          Create Temp
+          Create
         </button>
         <button className="button" type="button" onClick={onCleanupTemporaryProfile} disabled={working || !contestant.temporaryProfile}>
-          Clear Temp
+          Clear
         </button>
       </div>
       {contestant.temporaryProfile ? <p className="field-note">App-created temporary profile. Reset will publish blank metadata if this browser still has the key.</p> : null}
@@ -476,28 +478,29 @@ function setContestant(
 function updateDuration(
   setSession: Dispatch<SetStateAction<ZapBattleSession>>,
   setDurationDraft: Dispatch<SetStateAction<ReturnType<typeof durationInputParts>>>,
+  currentDraft: ReturnType<typeof durationInputParts>,
   unit: "minutes" | "seconds",
   rawValue: string
 ) {
   const nextValue = normalizeDurationInput(unit, rawValue);
-  setDurationDraft((current) => {
-    const next = {
-      ...current,
-      [unit]: nextValue
-    };
-    const minutes = Number.parseInt(next.minutes || "0", 10) || 0;
-    const seconds = Number.parseInt(next.seconds || "0", 10) || 0;
-    setSession((session) => ({
-      ...session,
-      durationSeconds: Math.max(1, minutes * 60 + seconds)
-    }));
-    return next;
-  });
+  const nextDraft = {
+    ...currentDraft,
+    [unit]: nextValue
+  };
+  const minutes = Number.parseInt(nextDraft.minutes || "0", 10) || 0;
+  const seconds = Number.parseInt(nextDraft.seconds || "0", 10) || 0;
+  setDurationDraft(nextDraft);
+  setSession((session) => ({
+    ...session,
+    durationSeconds: Math.max(1, minutes * 60 + seconds)
+  }));
 }
 
 function normalizeDurationInput(unit: "minutes" | "seconds", rawValue: string): string {
   if (rawValue.trim() === "") return "";
-  const value = Math.max(0, Number.parseInt(rawValue, 10) || 0);
+  const numericOnly = rawValue.replace(/\D/g, "");
+  if (!numericOnly) return "";
+  const value = Math.max(0, Number.parseInt(numericOnly, 10) || 0);
   return String(unit === "seconds" ? Math.min(59, value) : value);
 }
 
