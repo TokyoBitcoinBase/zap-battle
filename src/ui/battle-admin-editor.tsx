@@ -89,6 +89,7 @@ const DEFAULT_SESSION: ZapBattleSession = {
 export function BattleAdminEditor({ compact = false, locale = "en", sessionId }: { compact?: boolean; locale?: AdminLocale; sessionId: string }) {
   const copy = ADMIN_COPY[locale];
   const [session, setSession] = useState<ZapBattleSession>({ ...DEFAULT_SESSION, id: sessionId });
+  const [durationDraft, setDurationDraft] = useState(() => durationInputParts(DEFAULT_SESSION.durationSeconds));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
@@ -111,7 +112,10 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
         });
         if (!response.ok) throw new Error(copy.loadingFailed);
         const json = await response.json() as SessionResponse;
-        if (!cancelled) setSession(json.session);
+        if (!cancelled) {
+          setSession(json.session);
+          setDurationDraft(durationInputParts(json.session.durationSeconds));
+        }
       } catch (error) {
         if (!cancelled) setStatus(error instanceof Error ? error.message : copy.loadingFailed);
       } finally {
@@ -222,6 +226,7 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
         updatedAt: Math.floor(Date.now() / 1000)
       };
       setSession(nextSession);
+      setDurationDraft(durationInputParts(nextSession.durationSeconds));
       await saveSession(nextSession);
       setStatus(copy.resetSaved);
     } catch (error) {
@@ -259,6 +264,7 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
       const json = await response.json().catch(() => ({})) as { errors?: string[] };
       if (!response.ok) throw new Error(json.errors?.join(" / ") || copy.deleteFailed);
       setSession({ ...DEFAULT_SESSION, id: sessionId });
+      setDurationDraft(durationInputParts(DEFAULT_SESSION.durationSeconds));
       setStatus(copy.deleteSaved);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : copy.deleteFailed);
@@ -318,19 +324,21 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
               <input
                 inputMode="numeric"
                 min={0}
-                onChange={(event) => updateDuration(setSession, "minutes", event.target.value)}
+                onFocus={(event) => event.currentTarget.select()}
+                onChange={(event) => updateDuration(setSession, setDurationDraft, "minutes", event.target.value)}
                 placeholder="10"
                 type="number"
-                value={durationParts(session.durationSeconds).minutes || ""}
+                value={durationDraft.minutes}
               />
               <input
                 inputMode="numeric"
                 max={59}
                 min={0}
-                onChange={(event) => updateDuration(setSession, "seconds", event.target.value)}
+                onFocus={(event) => event.currentTarget.select()}
+                onChange={(event) => updateDuration(setSession, setDurationDraft, "seconds", event.target.value)}
                 placeholder="seconds"
                 type="number"
-                value={durationParts(session.durationSeconds).seconds || ""}
+                value={durationDraft.seconds}
               />
             </div>
           </label>
@@ -467,19 +475,38 @@ function setContestant(
 
 function updateDuration(
   setSession: Dispatch<SetStateAction<ZapBattleSession>>,
+  setDurationDraft: Dispatch<SetStateAction<ReturnType<typeof durationInputParts>>>,
   unit: "minutes" | "seconds",
   rawValue: string
 ) {
-  const value = Math.max(0, Number.parseInt(rawValue || "0", 10) || 0);
-  setSession((current) => {
-    const currentParts = durationParts(current.durationSeconds);
-    const minutes = unit === "minutes" ? value : currentParts.minutes;
-    const seconds = unit === "seconds" ? Math.min(59, value) : currentParts.seconds;
-    return {
+  const nextValue = normalizeDurationInput(unit, rawValue);
+  setDurationDraft((current) => {
+    const next = {
       ...current,
-      durationSeconds: Math.max(1, minutes * 60 + seconds)
+      [unit]: nextValue
     };
+    const minutes = Number.parseInt(next.minutes || "0", 10) || 0;
+    const seconds = Number.parseInt(next.seconds || "0", 10) || 0;
+    setSession((session) => ({
+      ...session,
+      durationSeconds: Math.max(1, minutes * 60 + seconds)
+    }));
+    return next;
   });
+}
+
+function normalizeDurationInput(unit: "minutes" | "seconds", rawValue: string): string {
+  if (rawValue.trim() === "") return "";
+  const value = Math.max(0, Number.parseInt(rawValue, 10) || 0);
+  return String(unit === "seconds" ? Math.min(59, value) : value);
+}
+
+function durationInputParts(durationSeconds: number) {
+  const parts = durationParts(durationSeconds);
+  return {
+    minutes: parts.minutes ? String(parts.minutes) : "",
+    seconds: parts.seconds ? String(parts.seconds) : ""
+  };
 }
 
 function durationParts(durationSeconds: number) {

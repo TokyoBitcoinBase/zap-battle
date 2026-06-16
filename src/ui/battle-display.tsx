@@ -33,7 +33,6 @@ const COPY = {
     noZaps: "No zaps in this battle.",
     paused: "Paused",
     qrNotReady: "QR not ready",
-    scanToZap: "Scan to Zap",
     sound: "Sound",
     totalReceived: "Total Received",
     waiting: "Waiting for zaps...",
@@ -63,7 +62,6 @@ const COPY = {
     noZaps: "このバトルのZapはありません。",
     paused: "停止中",
     qrNotReady: "QR未準備",
-    scanToZap: "スキャンしてZap",
     sound: "音",
     totalReceived: "受け取り合計",
     waiting: "Zap待機中...",
@@ -111,6 +109,7 @@ export function BattleDisplay({
   const latestReceiptCreatedAtRef = useRef(0);
   const previousCountRef = useRef(0);
   const previousStartsAtRef = useRef<number | null>(session.startsAt);
+  const timeUpSessionRef = useRef<string | null>(null);
   const celebrationTimerRef = useRef<number | undefined>(undefined);
   const finalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : null;
   const displayItems = finalItems ?? items;
@@ -154,6 +153,7 @@ export function BattleDisplay({
   useEffect(() => {
     if (previousStartsAtRef.current === session.startsAt) return;
     previousStartsAtRef.current = session.startsAt;
+    timeUpSessionRef.current = null;
     seenReceiptIdsRef.current.clear();
     latestReceiptCreatedAtRef.current = 0;
     previousCountRef.current = 0;
@@ -161,19 +161,40 @@ export function BattleDisplay({
   }, [session.startsAt]);
 
   useEffect(() => {
+    if (session.status !== "live" || !session.startsAt) return;
+    const startsAt = session.startsAt;
+    const timeUpKey = `${session.id}:${startsAt}`;
+    const checkTimeUp = () => {
+      if (timeUpSessionRef.current === timeUpKey) return;
+      const endAt = startsAt + session.durationSeconds;
+      if (currentSeconds() < endAt) return;
+      timeUpSessionRef.current = timeUpKey;
+      triggerCelebration(false);
+      if (soundEnabled) playTimeUpSound();
+    };
+    checkTimeUp();
+    const intervalId = window.setInterval(checkTimeUp, 250);
+    return () => window.clearInterval(intervalId);
+  }, [session.durationSeconds, session.id, session.startsAt, session.status, soundEnabled]);
+
+  useEffect(() => {
     if (!session.startsAt) return;
     if (session.status === "ended" && session.finalResult) return;
     function addReceipts(receipts: ZapReceiptItem[]) {
-      const unseen = receipts.filter((item) => {
-        if (seenReceiptIdsRef.current.has(item.id)) return false;
-        seenReceiptIdsRef.current.add(item.id);
-        latestReceiptCreatedAtRef.current = Math.max(latestReceiptCreatedAtRef.current, item.createdAt);
-        return true;
+      if (receipts.length === 0) return;
+      setItems((current) => {
+        const byId = new Map(current.map((item) => [item.id, item]));
+        receipts.forEach((item) => {
+          seenReceiptIdsRef.current.add(item.id);
+          byId.set(item.id, item);
+        });
+        return Array.from(byId.values())
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 40);
       });
-      if (unseen.length === 0) return;
-      setItems((current) => [...unseen, ...current]
-        .sort((a, b) => b.createdAt - a.createdAt)
-        .slice(0, 40));
+      receipts.forEach((item) => {
+        latestReceiptCreatedAtRef.current = Math.max(latestReceiptCreatedAtRef.current, item.createdAt);
+      });
     }
 
     if (session.status === "ended") {
@@ -279,13 +300,13 @@ export function BattleDisplay({
   function toggleSound() {
     setSoundEnabled((current) => {
       const next = !current;
-      if (next) void primeZapSound();
+      if (next) void primeZapSound().then(() => playSoundEnabledCue());
       return next;
     });
   }
 
   async function startBattle() {
-    await postAdminAction("start", undefined);
+    await postAdminAction("start", { session });
   }
 
   async function endBattle() {
@@ -310,7 +331,10 @@ export function BattleDisplay({
         body: body ? JSON.stringify(body) : undefined
       });
       const json = await response.json() as SessionResponse;
-      if (!response.ok) throw new Error(json.errors?.join(" / ") || "Admin action failed.");
+      if (!response.ok) {
+        setAdminActionStatus(action === "start" && json.errors?.length ? "Setup incomplete" : "Action failed");
+        return;
+      }
       onSessionChange?.(json.session);
       setAdminActionStatus(action === "start" ? "Started" : "Ended");
       window.setTimeout(() => setAdminActionStatus(""), 1600);
@@ -587,7 +611,6 @@ function ContestantStage({
           {qrDataUrl ? <img src={qrDataUrl} alt={`${displayContestantName(contestant)} QR`} /> : null}
           {!qrDataUrl ? <span className="qr-empty">{qrStatus || "QR"}</span> : null}
         </div>
-        <div className="scan-label">{copy.scanToZap} ⚡</div>
         <div className="lightning-address">{contestant.lightningAddress || copy.lightningMissing}</div>
       </div>
 
@@ -755,9 +778,9 @@ function createConfetti(): ConfettiPiece[] {
 }
 
 function playZapSound() {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
-  const context = new AudioContextClass();
+  const context = getAudioContext();
+  if (!context) return;
+  void context.resume?.();
   const now = context.currentTime;
   const output = context.createGain();
   output.gain.setValueAtTime(0.0001, now);
@@ -779,15 +802,69 @@ function playZapSound() {
     oscillator.stop(now + index * 0.055 + 0.26);
   });
 
-  window.setTimeout(() => void context.close(), 700);
+}
+
+function playTimeUpSound() {
+  const context = getAudioContext();
+  if (!context) return;
+  void context.resume?.();
+  const now = context.currentTime;
+  const output = context.createGain();
+  output.gain.setValueAtTime(0.0001, now);
+  output.gain.exponentialRampToValueAtTime(0.28, now + 0.03);
+  output.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
+  output.connect(context.destination);
+
+  [880, 660, 440, 220].forEach((frequency, index) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const startAt = now + index * 0.12;
+    oscillator.type = "sawtooth";
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.14, startAt + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.16);
+    oscillator.connect(gain);
+    gain.connect(output);
+    oscillator.start(startAt);
+    oscillator.stop(startAt + 0.18);
+  });
+
 }
 
 async function primeZapSound() {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
-  const context = new AudioContextClass();
+  const context = getAudioContext();
+  if (!context) return;
   if (context.state === "suspended") await context.resume().catch(() => undefined);
-  await context.close().catch(() => undefined);
+}
+
+function playSoundEnabledCue() {
+  const context = getAudioContext();
+  if (!context) return;
+  const now = context.currentTime;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(660, now);
+  oscillator.frequency.exponentialRampToValueAtTime(880, now + 0.12);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.2);
+}
+
+let sharedAudioContext: AudioContext | null = null;
+
+function getAudioContext(): AudioContext | null {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!sharedAudioContext || sharedAudioContext.state === "closed") {
+    sharedAudioContext = new AudioContextClass();
+  }
+  return sharedAudioContext;
 }
 
 declare global {

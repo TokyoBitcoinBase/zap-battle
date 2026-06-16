@@ -31,7 +31,13 @@ export function subscribeToZapReceipts({
   const sub = pool.subscribe(readRelays(), filter, {
     onevent(event) {
       const parsed = parseZapReceipt(event as NostrEvent, session);
-      if (parsed) onReceipt(parsed);
+      if (!parsed) return;
+      onReceipt(parsed.item);
+      void senderNameForPubkey(pool, parsed.senderPubkey).then((senderName) => {
+        if (senderName && senderName !== parsed.item.senderName) {
+          onReceipt({ ...parsed.item, senderName });
+        }
+      });
     }
   });
   return () => {
@@ -62,9 +68,15 @@ export async function fetchZapReceiptsOnce({
       Math.max(0, since ?? session.startsAt - 60)
     );
     const events = await pool.querySync(readRelays(), filter, { maxWait });
-    return events
+    const parsedItems = events
       .map((event) => parseZapReceipt(event as NostrEvent, session))
-      .filter((item): item is ZapReceiptItem => Boolean(item))
+      .filter((item): item is ParsedZapReceipt => Boolean(item));
+    const senderNames = await senderNamesForPubkeys(pool, parsedItems.map((item) => item.senderPubkey));
+    return parsedItems
+      .map((parsed) => ({
+        ...parsed.item,
+        senderName: senderNames.get(parsed.senderPubkey) || parsed.item.senderName
+      }))
       .sort((a, b) => b.createdAt - a.createdAt);
   } finally {
     pool.close(readRelays());
@@ -85,7 +97,12 @@ function createZapReceiptFilter(session: ZapBattleSession, since: number) {
   };
 }
 
-function parseZapReceipt(receipt: NostrEvent, session: ZapBattleSession): ZapReceiptItem | null {
+type ParsedZapReceipt = {
+  item: ZapReceiptItem;
+  senderPubkey: string;
+};
+
+function parseZapReceipt(receipt: NostrEvent, session: ZapBattleSession): ParsedZapReceipt | null {
   if (receipt.kind !== 9735 || !verifyEvent(receipt)) return null;
   const description = getTag(receipt, "description");
   if (!description) return null;
@@ -111,12 +128,15 @@ function parseZapReceipt(receipt: NostrEvent, session: ZapBattleSession): ZapRec
   if (session.endsAt && createdAt > session.endsAt + session.graceSeconds) return null;
 
   return {
-    id: receipt.id,
-    side,
-    senderName: shortKey(zapRequest.pubkey),
-    amountSats: Math.floor(amountMsats / 1000),
-    comment: zapRequest.content.trim(),
-    createdAt
+    item: {
+      id: receipt.id,
+      side,
+      senderName: shortKey(zapRequest.pubkey),
+      amountSats: Math.floor(amountMsats / 1000),
+      comment: zapRequest.content.trim(),
+      createdAt
+    },
+    senderPubkey: zapRequest.pubkey
   };
 }
 
@@ -136,6 +156,42 @@ function getTag(event: NostrEvent, name: string): string | undefined {
 
 function shortKey(pubkey: string): string {
   return pubkey.length > 12 ? `${pubkey.slice(0, 8)}...${pubkey.slice(-4)}` : pubkey;
+}
+
+async function senderNamesForPubkeys(pool: SimplePool, pubkeys: string[]): Promise<Map<string, string>> {
+  const uniquePubkeys = Array.from(new Set(pubkeys));
+  if (uniquePubkeys.length === 0) return new Map();
+  const events = await pool.querySync(readRelays(), {
+    kinds: [0],
+    authors: uniquePubkeys,
+    limit: uniquePubkeys.length
+  }, { maxWait: 1800 });
+  const names = new Map<string, string>();
+  events.forEach((event) => {
+    const name = senderNameFromMetadata(event as NostrEvent);
+    if (name) names.set(event.pubkey, name);
+  });
+  return names;
+}
+
+async function senderNameForPubkey(pool: SimplePool, pubkey: string): Promise<string | null> {
+  const event = await pool.get(readRelays(), {
+    kinds: [0],
+    authors: [pubkey]
+  });
+  return event ? senderNameFromMetadata(event as NostrEvent) : null;
+}
+
+function senderNameFromMetadata(event: NostrEvent): string | null {
+  if (event.kind !== 0 || !verifyEvent(event)) return null;
+  try {
+    const metadata = JSON.parse(event.content) as { display_name?: unknown; name?: unknown; username?: unknown };
+    const name = [metadata.display_name, metadata.name, metadata.username]
+      .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+    return name ? name.trim().slice(0, 80) : null;
+  } catch {
+    return null;
+  }
 }
 
 function readRelays(): string[] {

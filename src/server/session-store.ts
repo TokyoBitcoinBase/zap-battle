@@ -67,7 +67,7 @@ async function getNostrSession(sessionId: string): Promise<ZapBattleSession | nu
       kinds: [SESSION_KIND],
       authors: [pubkey],
       "#d": [sessionDTag(sessionId)]
-    });
+    }, { maxWait: 1200 });
     if (!event || !verifyEvent(event)) return null;
     const parsed = JSON.parse(event.content) as unknown;
     if (isDeletedSession(parsed, sessionId)) return null;
@@ -99,7 +99,10 @@ async function publishNostrSessionDeletion(sessionId: string): Promise<void> {
   }, privateKey);
   const pool = new SimplePool();
   try {
-    await Promise.any(pool.publish(readSessionRelays(), event));
+    await Promise.race([
+      Promise.any(pool.publish(readSessionRelays(), event, { maxWait: 1600 })),
+      timeout(1600)
+    ]);
   } finally {
     pool.close(readSessionRelays());
   }
@@ -122,10 +125,19 @@ async function publishNostrSession(session: ZapBattleSession): Promise<void> {
   }, privateKey);
   const pool = new SimplePool();
   try {
-    await Promise.any(pool.publish(readSessionRelays(), event));
+    await Promise.race([
+      Promise.any(pool.publish(readSessionRelays(), event, { maxWait: 1600 })),
+      timeout(1600)
+    ]);
   } finally {
     pool.close(readSessionRelays());
   }
+}
+
+function timeout(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function isDeletedSession(value: unknown, sessionId: string): boolean {
