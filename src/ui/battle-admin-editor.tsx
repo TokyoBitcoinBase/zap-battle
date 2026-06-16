@@ -15,6 +15,7 @@ const ADMIN_COPY = {
   en: {
     clearResultsConfirm: "Clear results and comments? Player info and Lightning Addresses will remain.",
     clearResultsSaved: "Results and comments were cleared. Player info remains.",
+    clearPlayerConfirm: "Clear this player? Display name, Lightning Address, and Nostr profile link will be removed.",
     copyIframeFailed: "Could not copy iframe code.",
     creatingTemp: "Creating temporary Nostr profile...",
     createTempFailed: "Could not create temporary Nostr profile.",
@@ -40,6 +41,7 @@ const ADMIN_COPY = {
   ja: {
     clearResultsConfirm: "集計とコメントをリセットしますか？参加者情報とLightning Addressは残ります。",
     clearResultsSaved: "集計とコメントをリセットしました。参加者情報は残しています。",
+    clearPlayerConfirm: "このプレイヤー欄を空にしますか？表示名、Lightning Address、Nostrプロフィール連携が消えます。",
     copyIframeFailed: "iframeコードをコピーできませんでした。",
     creatingTemp: "一時Nostrプロフィールを作成しています...",
     createTempFailed: "一時Nostrプロフィールを作成できませんでした。",
@@ -86,7 +88,17 @@ const DEFAULT_SESSION: ZapBattleSession = {
   }
 };
 
-export function BattleAdminEditor({ compact = false, locale = "en", sessionId }: { compact?: boolean; locale?: AdminLocale; sessionId: string }) {
+export function BattleAdminEditor({
+  compact = false,
+  locale = "en",
+  onSessionChange,
+  sessionId
+}: {
+  compact?: boolean;
+  locale?: AdminLocale;
+  onSessionChange?(session: ZapBattleSession): void;
+  sessionId: string;
+}) {
   const copy = ADMIN_COPY[locale];
   const [session, setSession] = useState<ZapBattleSession>({ ...DEFAULT_SESSION, id: sessionId });
   const [durationDraft, setDurationDraft] = useState(() => durationInputParts(DEFAULT_SESSION.durationSeconds));
@@ -145,6 +157,7 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
       const json = await response.json() as SessionResponse & { errors?: string[] };
       if (!response.ok) throw new Error(json.errors?.join(" / ") || copy.saveFailed);
       setSession(json.session);
+      onSessionChange?.(json.session);
       setStatus(successMessage);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : copy.saveFailed);
@@ -180,6 +193,8 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
 
   async function cleanupInstantContestant(side: BattleSide) {
     const contestant = session.contestants[side];
+    const confirmed = window.confirm(copy.clearPlayerConfirm);
+    if (!confirmed) return;
     setSaving(true);
     setStatus(copy.tempCleaning);
     try {
@@ -189,8 +204,11 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
         expectedPubkey: contestant.temporaryProfile ? contestant.nostrPubkey : undefined
       });
       const nextSession = updateContestant(session, side, {
-        ...contestant,
+        side,
+        displayName: "",
+        lightningAddress: "",
         nostrPubkey: undefined,
+        profileImageUrl: undefined,
         temporaryProfile: false
       });
       setSession(nextSession);
@@ -264,6 +282,7 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
       const json = await response.json().catch(() => ({})) as { errors?: string[] };
       if (!response.ok) throw new Error(json.errors?.join(" / ") || copy.deleteFailed);
       setSession({ ...DEFAULT_SESSION, id: sessionId });
+      onSessionChange?.({ ...DEFAULT_SESSION, id: sessionId });
       setDurationDraft(durationInputParts(DEFAULT_SESSION.durationSeconds));
       setStatus(copy.deleteSaved);
     } catch (error) {
@@ -321,27 +340,33 @@ export function BattleAdminEditor({ compact = false, locale = "en", sessionId }:
           <label className="field">
             <span>Battle time</span>
             <div className="time-grid">
-              <input
-                inputMode="numeric"
-                min={0}
-                onFocus={(event) => event.currentTarget.select()}
-                onChange={(event) => updateDuration(setSession, setDurationDraft, durationDraft, "minutes", event.target.value)}
-                placeholder="10"
-                pattern="[0-9]*"
-                type="text"
-                value={durationDraft.minutes}
-              />
-              <input
-                inputMode="numeric"
-                max={59}
-                min={0}
-                onFocus={(event) => event.currentTarget.select()}
-                onChange={(event) => updateDuration(setSession, setDurationDraft, durationDraft, "seconds", event.target.value)}
-                placeholder="seconds"
-                pattern="[0-9]*"
-                type="text"
-                value={durationDraft.seconds}
-              />
+              <label>
+                <small>Minutes</small>
+                <input
+                  inputMode="numeric"
+                  min={0}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => updateDuration(setSession, setDurationDraft, durationDraft, "minutes", event.target.value)}
+                  placeholder="10"
+                  pattern="[0-9]*"
+                  type="text"
+                  value={durationDraft.minutes}
+                />
+              </label>
+              <label>
+                <small>Seconds</small>
+                <input
+                  inputMode="numeric"
+                  max={59}
+                  min={0}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => updateDuration(setSession, setDurationDraft, durationDraft, "seconds", event.target.value)}
+                  placeholder="0"
+                  pattern="[0-9]*"
+                  type="text"
+                  value={durationDraft.seconds}
+                />
+              </label>
             </div>
           </label>
         </div>
@@ -434,11 +459,11 @@ function ContestantForm({
         <button className="button gold" type="button" onClick={onCreateTemporaryProfile} disabled={working}>
           Create
         </button>
-        <button className="button" type="button" onClick={onCleanupTemporaryProfile} disabled={working || !contestant.temporaryProfile}>
+        <button className="button" type="button" onClick={onCleanupTemporaryProfile} disabled={working}>
           Clear
         </button>
       </div>
-      {contestant.temporaryProfile ? <p className="field-note">App-created temporary profile. Reset will publish blank metadata if this browser still has the key.</p> : null}
+      {contestant.temporaryProfile ? <p className="field-note">App-created temporary profile. Clear will blank this player and publish blank metadata if this browser still has the key.</p> : null}
       <label className="field">
         <span>Nostr public key / npub optional</span>
         <input

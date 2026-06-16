@@ -427,7 +427,7 @@ export function BattleDisplay({
                 {copy.close}
               </button>
             </div>
-            <BattleAdminEditor compact locale={locale} sessionId={session.id} />
+            <BattleAdminEditor compact locale={locale} onSessionChange={onSessionChange} sessionId={session.id} />
           </div>
         </div>
       ) : null}
@@ -626,7 +626,6 @@ function ContestantStage({
         </div>
 
         <div className="profile-empty">
-          <div className="profile-icon" aria-hidden="true">♟</div>
           {showDemoControls ? (
             <button className="button primary" type="button" onClick={onDemoZap}>
               {copy.demoZap}
