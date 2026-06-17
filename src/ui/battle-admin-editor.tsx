@@ -21,6 +21,8 @@ const ADMIN_COPY = {
     createTempFailed: "Could not create temporary Nostr profile.",
     createTempMissing: "Display name and Lightning Address are required for instant creation.",
     createTempSaved: "Temporary Nostr profile created and saved to the session.",
+    createMissingTemps: "Create temporary Nostr profiles for players without Nostr accounts",
+    createMissingTempsNote: "Uses the entered display name and Lightning Address, then stores the temporary keys only in this browser.",
     deleteConfirm: "Delete the data for this display URL? The public display will become not configured. The URL route itself will still exist.",
     deleteFailed: "Could not delete URL data.",
     deleteSaved: "Display URL data deleted. The public display is now not configured.",
@@ -31,8 +33,10 @@ const ADMIN_COPY = {
     resetFailed: "Could not reset.",
     resetSaved: "Reset complete. Temporary profiles were cleared where possible.",
     saveFailed: "Could not save.",
+    saveWithTempProfiles: "Save + Create Nostr Profiles",
     saving: "Saving...",
     saved: "Saved. The display screen will update.",
+    savedWithTempProfiles: "Temporary Nostr profiles created and saved. The display screen will update.",
     tempCleaned: "Temporary Nostr profile was cleared and removed from the session.",
     tempCleanedLocalOnly: "No temporary key was found in this browser, so it was only removed from the session.",
     tempCleaning: "Clearing temporary Nostr profile...",
@@ -47,6 +51,8 @@ const ADMIN_COPY = {
     createTempFailed: "一時Nostrプロフィールを作成できませんでした。",
     createTempMissing: "インスタント作成には表示名とLightning Addressが必要です。",
     createTempSaved: "一時Nostrプロフィールを作成し、セッションへ保存しました。",
+    createMissingTemps: "Nostrアカウントがないプレイヤー用に一時Nostrプロフィールを作成する",
+    createMissingTempsNote: "入力済みの表示名とLightning Addressを使います。一時鍵はこのブラウザにのみ保存されます。",
     deleteConfirm: "この表示URLのデータを削除しますか？公開表示は未設定に戻ります。URLのルート自体は残ります。",
     deleteFailed: "URLデータを削除できませんでした。",
     deleteSaved: "表示URLのデータを削除しました。公開表示は未設定になりました。",
@@ -57,8 +63,10 @@ const ADMIN_COPY = {
     resetFailed: "リセットできませんでした。",
     resetSaved: "リセットしました。一時プロフィールは可能な範囲で空にしました。",
     saveFailed: "保存できませんでした。",
+    saveWithTempProfiles: "保存 + Nostrプロフィール作成",
     saving: "保存しています...",
     saved: "保存しました。表示画面に反映されます。",
+    savedWithTempProfiles: "一時Nostrプロフィールを作成して保存しました。表示画面に反映されます。",
     tempCleaned: "一時Nostrプロフィールを空にし、セッションから外しました。",
     tempCleanedLocalOnly: "このブラウザに一時鍵がないため、セッションからのみ外しました。",
     tempCleaning: "一時Nostrプロフィールを空にしています...",
@@ -73,7 +81,7 @@ const DEFAULT_SESSION: ZapBattleSession = {
   startsAt: null,
   endsAt: null,
   durationSeconds: 10 * 60,
-  graceSeconds: 60,
+  graceSeconds: 30,
   contestants: {
     left: {
       side: "left",
@@ -107,9 +115,12 @@ export function BattleAdminEditor({
   const [status, setStatus] = useState("");
   const [iframeCopied, setIframeCopied] = useState(false);
   const [adminToken, setAdminToken] = useState("");
+  const [createMissingTemporaryProfiles, setCreateMissingTemporaryProfiles] = useState(true);
   const displayUrl = `/zap-battle/${encodeURIComponent(sessionId)}/display`;
   const absoluteDisplayUrl = useAbsoluteUrl(displayUrl);
   const iframeCode = `<iframe src="${absoluteDisplayUrl}" style="width:100%;min-height:900px;border:0;" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" title="Zap Battle"></iframe>`;
+  const missingTemporaryProfileSides = temporaryProfileCandidateSides(session);
+  const shouldCreateMissingTemporaryProfiles = createMissingTemporaryProfiles && missingTemporaryProfileSides.length > 0;
 
   useEffect(() => {
     const storedToken = localStorage.getItem(adminTokenStorageKey(sessionId)) ?? localStorage.getItem(globalAdminTokenStorageKey()) ?? "";
@@ -145,14 +156,23 @@ export function BattleAdminEditor({
     localStorage.setItem(globalAdminTokenStorageKey(), adminToken);
   }, [adminToken, sessionId]);
 
-  async function saveSession(nextSession = session, successMessage = copy.saved) {
+  async function saveSession(
+    nextSession = session,
+    successMessage = copy.saved,
+    options: { createMissingTemporaryProfiles?: boolean } = {}
+  ) {
     setSaving(true);
     setStatus(copy.saving);
     try {
+      let sessionToSave = nextSession;
+      const createMissing = options.createMissingTemporaryProfiles ?? false;
+      if (createMissing) {
+        sessionToSave = await withTemporaryProfilesForMissingContestants(nextSession);
+      }
       const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(sessionId)}`, {
         method: "PUT",
         headers: adminHeaders(adminToken),
-        body: JSON.stringify(nextSession)
+        body: JSON.stringify(sessionToSave)
       });
       const json = await response.json() as SessionResponse & { errors?: string[] };
       if (!response.ok) throw new Error(json.errors?.join(" / ") || copy.saveFailed);
@@ -182,13 +202,28 @@ export function BattleAdminEditor({
         temporaryProfile: true
       });
       setSession(nextSession);
-      await saveSession(nextSession);
+      await saveSession(nextSession, copy.saved);
       setStatus(copy.createTempSaved);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : copy.createTempFailed);
     } finally {
       setSaving(false);
     }
+  }
+
+  async function withTemporaryProfilesForMissingContestants(nextSession: ZapBattleSession): Promise<ZapBattleSession> {
+    let updatedSession = nextSession;
+    for (const side of temporaryProfileCandidateSides(nextSession)) {
+      const contestant = updatedSession.contestants[side];
+      const { pubkey } = await createTemporaryProfile({ sessionId, contestant });
+      updatedSession = updateContestant(updatedSession, side, {
+        ...contestant,
+        nostrPubkey: pubkey,
+        temporaryProfile: true
+      });
+    }
+    setSession(updatedSession);
+    return updatedSession;
   }
 
   async function cleanupInstantContestant(side: BattleSide) {
@@ -387,9 +422,32 @@ export function BattleAdminEditor({
         />
       </section>
 
+      {missingTemporaryProfileSides.length > 0 ? (
+        <section className="admin-profile-options" aria-label="Nostr profile options">
+          <label className="checkbox-field">
+            <input
+              checked={createMissingTemporaryProfiles}
+              onChange={(event) => setCreateMissingTemporaryProfiles(event.target.checked)}
+              type="checkbox"
+            />
+            <span>{copy.createMissingTemps}</span>
+          </label>
+          <p>{copy.createMissingTempsNote}</p>
+        </section>
+      ) : null}
+
       <section className="admin-actions">
-        <button className="button primary" type="button" onClick={() => void saveSession()} disabled={saving}>
-          {saving ? "Working..." : "Save"}
+        <button
+          className="button primary"
+          type="button"
+          onClick={() => void saveSession(
+            session,
+            shouldCreateMissingTemporaryProfiles ? copy.savedWithTempProfiles : copy.saved,
+            { createMissingTemporaryProfiles: shouldCreateMissingTemporaryProfiles }
+          )}
+          disabled={saving}
+        >
+          {saving ? "Working..." : shouldCreateMissingTemporaryProfiles ? copy.saveWithTempProfiles : "Save"}
         </button>
         <button className="button gold" type="button" onClick={() => void clearResults()} disabled={saving}>
           Clear results
@@ -498,6 +556,18 @@ function setContestant(
       [side]: contestant
     }
   }));
+}
+
+function temporaryProfileCandidateSides(session: ZapBattleSession): BattleSide[] {
+  return (["left", "right"] as BattleSide[]).filter((side) => {
+    const contestant = session.contestants[side];
+    return Boolean(
+      contestant.displayName.trim() &&
+      contestant.lightningAddress.trim() &&
+      !contestant.nostrPubkey?.trim() &&
+      !contestant.temporaryProfile
+    );
+  });
 }
 
 function updateDuration(

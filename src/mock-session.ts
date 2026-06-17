@@ -7,7 +7,7 @@ export const mockSession: ZapBattleSession = {
   startsAt: null,
   endsAt: null,
   durationSeconds: 10 * 60,
-  graceSeconds: 60,
+  graceSeconds: 30,
   contestants: {
     left: {
       side: "left",

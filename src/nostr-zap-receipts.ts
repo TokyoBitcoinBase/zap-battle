@@ -27,7 +27,7 @@ export function subscribeToZapReceipts({
   if (!session.startsAt || contestantPubkeys.length === 0) return () => undefined;
 
   const pool = new SimplePool();
-  const filter = createZapReceiptFilter(session, Math.max(0, session.startsAt - 60));
+  const filter = createZapReceiptFilter(session, session.startsAt);
   const sub = pool.subscribe(readRelays(), filter, {
     onevent(event) {
       const parsed = parseZapReceipt(event as NostrEvent, session);
@@ -65,7 +65,7 @@ export async function fetchZapReceiptsOnce({
   try {
     const filter = createZapReceiptFilter(
       session,
-      Math.max(0, since ?? session.startsAt - 60)
+      since ?? session.startsAt
     );
     const events = await pool.querySync(readRelays(), filter, { maxWait });
     const parsedItems = events
@@ -124,7 +124,7 @@ function parseZapReceipt(receipt: NostrEvent, session: ZapBattleSession): Parsed
   const amountMsats = Number(getTag(zapRequest, "amount") || getTag(receipt, "amount") || 0);
   if (!Number.isFinite(amountMsats) || amountMsats <= 0) return null;
   const createdAt = zapRequest.created_at || receipt.created_at;
-  if (session.startsAt && createdAt < session.startsAt - 60) return null;
+  if (session.startsAt && createdAt < session.startsAt) return null;
   if (session.endsAt && createdAt > session.endsAt + session.graceSeconds) return null;
 
   return {

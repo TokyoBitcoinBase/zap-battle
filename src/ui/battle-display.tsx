@@ -20,6 +20,7 @@ type ConfettiPiece = {
 type Locale = "en" | "ja";
 
 const CONFETTI_COLORS = ["#ffd238", "#20d4ff", "#ff3e88", "#20f0b0", "#ffffff", "#ff8a1f"];
+const SOUND_ENABLED_STORAGE_KEY = "zap-battle:sound-enabled";
 
 const COPY = {
   en: {
@@ -186,7 +187,7 @@ export function BattleDisplay({
         const byId = new Map(current.map((item) => [item.id, item]));
         receipts.forEach((item) => {
           seenReceiptIdsRef.current.add(item.id);
-          byId.set(item.id, item);
+          byId.set(item.id, mergeZapReceiptItem(byId.get(item.id), item));
         });
         return Array.from(byId.values())
           .sort((a, b) => b.createdAt - a.createdAt)
@@ -200,7 +201,7 @@ export function BattleDisplay({
     if (session.status === "ended") {
       void fetchZapReceiptsOnce({
         session,
-        since: Math.max(0, session.startsAt - 60)
+        since: session.startsAt
       }).then(addReceipts);
       return;
     }
@@ -247,6 +248,7 @@ export function BattleDisplay({
   useEffect(() => {
     const stored = localStorage.getItem("zap-battle:locale");
     if (stored === "ja" || stored === "en") setLocale(stored);
+    setSoundEnabled(localStorage.getItem(SOUND_ENABLED_STORAGE_KEY) === "true");
   }, []);
 
   useEffect(() => {
@@ -300,6 +302,7 @@ export function BattleDisplay({
   function toggleSound() {
     setSoundEnabled((current) => {
       const next = !current;
+      localStorage.setItem(SOUND_ENABLED_STORAGE_KEY, String(next));
       if (next) void primeZapSound().then(() => playSoundEnabledCue());
       return next;
     });
@@ -313,7 +316,7 @@ export function BattleDisplay({
     const confirmed = window.confirm("End this battle now? The timer will keep running unless you confirm.");
     if (!confirmed) return;
     const receipts = session.startsAt
-      ? await fetchZapReceiptsOnce({ session, since: Math.max(0, session.startsAt - 60), maxWait: 3500 })
+      ? await fetchZapReceiptsOnce({ session, since: session.startsAt, maxWait: 3500 })
       : [];
     await postAdminAction("end", {
       finalResult: createFinalResult(receipts)
@@ -469,8 +472,11 @@ export function BattleDisplay({
             {displayItems.map((item) => (
               <li className="feed-item" key={item.id}>
                 <div>
-                  <p>{item.senderName} {"->"} {item.side === "left" ? displayContestantName(session.contestants.left) : displayContestantName(session.contestants.right)}</p>
-                  <small>{item.comment || copy.noComment}</small>
+                  <p>
+                    <span className="feed-sender">{item.senderName} {"-> "}</span>
+                    <span className="feed-target">{item.side === "left" ? displayContestantName(session.contestants.left) : displayContestantName(session.contestants.right)}</span>
+                  </p>
+                  <small className="feed-comment">{item.comment || copy.noComment}</small>
                 </div>
                 <strong>{item.amountSats.toLocaleString()} sats</strong>
               </li>
@@ -566,13 +572,18 @@ function ContestantStage({
 }) {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrStatus, setQrStatus] = useState("");
+  const qrContestant = useMemo(() => ({
+    side: contestant.side,
+    displayName: contestant.displayName,
+    lightningAddress: contestant.lightningAddress
+  }), [contestant.side, contestant.displayName, contestant.lightningAddress]);
 
   useEffect(() => {
     let cancelled = false;
     async function createQr() {
       try {
         setQrStatus("");
-        const payload = await qrPayloadForContestant(sessionId, contestant);
+        const payload = await qrPayloadForContestant(sessionId, qrContestant);
         const dataUrl = await QRCode.toDataURL(payload, {
           errorCorrectionLevel: "L",
           margin: 2,
@@ -594,7 +605,7 @@ function ContestantStage({
     return () => {
       cancelled = true;
     };
-  }, [contestant, copy.qrNotReady, sessionId]);
+  }, [copy.qrNotReady, qrContestant, sessionId]);
 
   return (
     <article className={`side ${contestant.side}`}>
@@ -687,11 +698,6 @@ function timerState(session: ZapBattleSession, now: number, copy: typeof COPY[Lo
     return { label: copy.timeLeft, value: formatDuration(remaining), phase: remaining <= 30 ? "urgent" : "live" };
   }
 
-  const overtimeRemaining = endAt + session.graceSeconds - now;
-  if (overtimeRemaining > 0) {
-    return { label: copy.overtime, value: formatDuration(overtimeRemaining), phase: "urgent" };
-  }
-
   return { label: copy.finalizing, value: "00:00", phase: "urgent" };
 }
 
@@ -739,6 +745,21 @@ function createFinalResult(receipts: ZapReceiptItem[]) {
     right,
     receipts: normalized.slice(0, 80)
   };
+}
+
+function mergeZapReceiptItem(existing: ZapReceiptItem | undefined, incoming: ZapReceiptItem): ZapReceiptItem {
+  if (!existing) return incoming;
+  if (isShortPubkeyName(incoming.senderName) && !isShortPubkeyName(existing.senderName)) {
+    return {
+      ...incoming,
+      senderName: existing.senderName
+    };
+  }
+  return incoming;
+}
+
+function isShortPubkeyName(value: string): boolean {
+  return /^[0-9a-f]{8}\.\.\.[0-9a-f]{4}$/i.test(value);
 }
 
 function adminHeaders(adminToken: string): HeadersInit {
