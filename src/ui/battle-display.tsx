@@ -108,12 +108,16 @@ export function BattleDisplay({
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
   const seenReceiptIdsRef = useRef<Set<string>>(new Set());
   const latestReceiptCreatedAtRef = useRef(0);
-  const previousCountRef = useRef(0);
   const previousStartsAtRef = useRef<number | null>(session.startsAt);
   const timeUpSessionRef = useRef<string | null>(null);
+  const finalizedSessionRef = useRef<string | null>(null);
+  const finalSoundSessionRef = useRef<string | null>(session.status === "ended" ? `${session.id}:${session.startsAt ?? "ended"}` : null);
+  const soundEnabledRef = useRef(false);
   const celebrationTimerRef = useRef<number | undefined>(undefined);
   const finalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : null;
   const displayItems = finalItems ?? items;
+  const leftFeedItems = displayItems.filter((item) => item.side === "left").slice(0, 3);
+  const rightFeedItems = displayItems.filter((item) => item.side === "right").slice(0, 3);
   const copy = COPY[locale];
   const showDemoControls = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEMO_ZAPS === "true";
 
@@ -134,20 +138,17 @@ export function BattleDisplay({
       : "right";
 
   useEffect(() => {
-    if (items.length <= previousCountRef.current) {
-      previousCountRef.current = items.length;
-      return;
-    }
-    previousCountRef.current = items.length;
-    triggerCelebration(soundEnabled);
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  useEffect(() => {
     return () => window.clearTimeout(celebrationTimerRef.current);
-  }, [items.length, soundEnabled]);
+  }, []);
 
   useEffect(() => {
     if (session.startsAt && session.status !== "draft") return;
     seenReceiptIdsRef.current.clear();
     latestReceiptCreatedAtRef.current = 0;
-    previousCountRef.current = 0;
     setItems([]);
   }, [session.startsAt, session.status]);
 
@@ -155,9 +156,9 @@ export function BattleDisplay({
     if (previousStartsAtRef.current === session.startsAt) return;
     previousStartsAtRef.current = session.startsAt;
     timeUpSessionRef.current = null;
+    finalizedSessionRef.current = null;
     seenReceiptIdsRef.current.clear();
     latestReceiptCreatedAtRef.current = 0;
-    previousCountRef.current = 0;
     setItems([]);
   }, [session.startsAt]);
 
@@ -171,7 +172,7 @@ export function BattleDisplay({
       if (currentSeconds() < endAt) return;
       timeUpSessionRef.current = timeUpKey;
       triggerCelebration(false);
-      if (soundEnabled) playTimeUpSound();
+      if (soundEnabled) void playTimeUpSound();
     };
     checkTimeUp();
     const intervalId = window.setInterval(checkTimeUp, 250);
@@ -179,10 +180,35 @@ export function BattleDisplay({
   }, [session.durationSeconds, session.id, session.startsAt, session.status, soundEnabled]);
 
   useEffect(() => {
+    if (session.status !== "ended" || !session.finalResult) return;
+    const finalSoundKey = `${session.id}:${session.startsAt ?? session.finalResult.capturedAt}`;
+    if (finalSoundSessionRef.current === finalSoundKey) return;
+    finalSoundSessionRef.current = finalSoundKey;
+    if (soundEnabled) void playTimeUpSound();
+  }, [session.finalResult, session.id, session.startsAt, session.status, soundEnabled]);
+
+  useEffect(() => {
+    if (!adminEnabled || session.status !== "live" || !session.startsAt) return;
+    const finalizeKey = `${session.id}:${session.startsAt}`;
+    if (finalizedSessionRef.current === finalizeKey) return;
+    const endAt = session.endsAt ?? session.startsAt + session.durationSeconds;
+    const finalizeAt = endAt + session.graceSeconds;
+    const delayMs = Math.max(0, (finalizeAt - currentSeconds()) * 1000);
+    const timeoutId = window.setTimeout(() => {
+      if (finalizedSessionRef.current === finalizeKey) return;
+      if (!currentAdminToken(session.id)) return;
+      finalizedSessionRef.current = finalizeKey;
+      void finalizeBattle();
+    }, delayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [adminEnabled, session.durationSeconds, session.endsAt, session.graceSeconds, session.id, session.startsAt, session.status]);
+
+  useEffect(() => {
     if (!session.startsAt) return;
     if (session.status === "ended" && session.finalResult) return;
     function addReceipts(receipts: ZapReceiptItem[]) {
       if (receipts.length === 0) return;
+      const hasNewReceipt = receipts.some((item) => !seenReceiptIdsRef.current.has(item.id));
       setItems((current) => {
         const byId = new Map(current.map((item) => [item.id, item]));
         receipts.forEach((item) => {
@@ -193,6 +219,7 @@ export function BattleDisplay({
           .sort((a, b) => b.createdAt - a.createdAt)
           .slice(0, 40);
       });
+      if (hasNewReceipt) triggerCelebration(soundEnabledRef.current);
       receipts.forEach((item) => {
         latestReceiptCreatedAtRef.current = Math.max(latestReceiptCreatedAtRef.current, item.createdAt);
       });
@@ -278,13 +305,14 @@ export function BattleDisplay({
       },
       ...current
     ].slice(0, 20));
+    triggerCelebration(soundEnabledRef.current);
   }
 
   function triggerCelebration(withSound: boolean) {
     window.clearTimeout(celebrationTimerRef.current);
     setConfetti(createConfetti());
     setCelebrating(true);
-    if (withSound) playZapSound();
+    if (withSound) void playZapSound();
     celebrationTimerRef.current = window.setTimeout(() => {
       setCelebrating(false);
       setConfetti([]);
@@ -315,6 +343,10 @@ export function BattleDisplay({
   async function endBattle() {
     const confirmed = window.confirm("End this battle now? The timer will keep running unless you confirm.");
     if (!confirmed) return;
+    await finalizeBattle();
+  }
+
+  async function finalizeBattle() {
     const receipts = session.startsAt
       ? await fetchZapReceiptsOnce({ session, since: session.startsAt, maxWait: 3500 })
       : [];
@@ -436,57 +468,125 @@ export function BattleDisplay({
       ) : null}
 
       {session.status === "ended" ? (
-        <FinalResultStage
-          left={session.contestants.left}
-          leftStats={leftStats}
-          right={session.contestants.right}
-          rightStats={rightStats}
-          winner={leader}
-          copy={copy}
-        />
+        <>
+          <FinalResultStage
+            left={session.contestants.left}
+            leftStats={leftStats}
+            right={session.contestants.right}
+            rightStats={rightStats}
+            winner={leader}
+            copy={copy}
+          />
+          <ZapFeed
+            copy={copy}
+            emptyText={copy.noZaps}
+            left={session.contestants.left}
+            leftItems={leftFeedItems}
+            right={session.contestants.right}
+            rightItems={rightFeedItems}
+            title={copy.finalZaps}
+            variant="final"
+          />
+        </>
       ) : (
-        <section className="arena" aria-label="Zap Battle scoreboard">
-          <ContestantStage
-            sessionId={session.id}
-            contestant={session.contestants.left}
+        <>
+          <section className="arena" aria-label="Zap Battle scoreboard">
+            <ContestantStage
+              sessionId={session.id}
+              contestant={session.contestants.left}
+              copy={copy}
+              showDemoControls={showDemoControls}
+              stats={leftStats}
+              onDemoZap={() => addDemoZap("left")}
+            />
+            <ContestantStage
+              sessionId={session.id}
+              contestant={session.contestants.right}
+              copy={copy}
+              showDemoControls={showDemoControls}
+              stats={rightStats}
+              onDemoZap={() => addDemoZap("right")}
+            />
+          </section>
+          <ZapFeed
             copy={copy}
-            showDemoControls={showDemoControls}
-            stats={leftStats}
-            onDemoZap={() => addDemoZap("left")}
+            emptyText={copy.waiting}
+            left={session.contestants.left}
+            leftItems={leftFeedItems}
+            right={session.contestants.right}
+            rightItems={rightFeedItems}
+            title={copy.realtimeZaps}
           />
-          <ContestantStage
-            sessionId={session.id}
-            contestant={session.contestants.right}
-            copy={copy}
-            showDemoControls={showDemoControls}
-            stats={rightStats}
-            onDemoZap={() => addDemoZap("right")}
-          />
-        </section>
+        </>
       )}
-
-      <section className={`feed-dock ${session.status === "ended" ? "final" : ""}`}>
-        <h2>{session.status === "ended" ? copy.finalZaps : copy.realtimeZaps}</h2>
-        {displayItems.length > 0 ? (
-          <ol className="feed-list">
-            {displayItems.map((item) => (
-              <li className="feed-item" key={item.id}>
-                <div>
-                  <p>
-                    <span className="feed-sender">{item.senderName} {"-> "}</span>
-                    <span className="feed-target">{item.side === "left" ? displayContestantName(session.contestants.left) : displayContestantName(session.contestants.right)}</span>
-                  </p>
-                  <small className="feed-comment">{item.comment || copy.noComment}</small>
-                </div>
-                <strong>{item.amountSats.toLocaleString()} sats</strong>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="feed-empty">{session.status === "ended" ? copy.noZaps : copy.waiting}</p>
-        )}
-      </section>
     </main>
+  );
+}
+
+function ZapFeed({
+  copy,
+  emptyText,
+  left,
+  leftItems,
+  right,
+  rightItems,
+  title,
+  variant
+}: {
+  copy: typeof COPY[Locale];
+  emptyText: string;
+  left: Contestant;
+  leftItems: ZapReceiptItem[];
+  right: Contestant;
+  rightItems: ZapReceiptItem[];
+  title: string;
+  variant?: "final";
+}) {
+  return (
+    <section className={`feed-dock ${variant === "final" ? "final" : ""}`} aria-label={title}>
+      <h2>{title}</h2>
+      <div className="feed-lanes">
+        <FeedLane contestant={left} copy={copy} emptyText={emptyText} items={leftItems} />
+        <FeedLane contestant={right} copy={copy} emptyText={emptyText} items={rightItems} />
+      </div>
+    </section>
+  );
+}
+
+function FeedLane({
+  contestant,
+  copy,
+  emptyText,
+  items
+}: {
+  contestant: Contestant;
+  copy: typeof COPY[Locale];
+  emptyText: string;
+  items: ZapReceiptItem[];
+}) {
+  return (
+    <div className={`feed-lane ${contestant.side}`}>
+      <h3>{displayContestantName(contestant)}</h3>
+      {items.length > 0 ? (
+        <ol className="feed-list">
+          {items.map((item) => (
+            <li className="feed-item" key={item.id}>
+              <div>
+                <p>
+                  <span className="feed-sender">{item.senderName}</span>
+                  <span className="feed-arrow" aria-hidden="true">-&gt;</span>
+                  <span className="feed-target">{displayContestantName(contestant)}</span>
+                </p>
+                <small className="feed-comment">{item.comment || copy.noComment}</small>
+              </div>
+              <strong>{item.amountSats.toLocaleString()} sats</strong>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="feed-empty">{emptyText}</p>
+      )}
+    </div>
   );
 }
 
@@ -797,10 +897,10 @@ function createConfetti(): ConfettiPiece[] {
   });
 }
 
-function playZapSound() {
+async function playZapSound() {
   const context = getAudioContext();
   if (!context) return;
-  void context.resume?.();
+  await resumeAudioContext(context);
   const now = context.currentTime;
   const output = context.createGain();
   output.gain.setValueAtTime(0.0001, now);
@@ -824,10 +924,10 @@ function playZapSound() {
 
 }
 
-function playTimeUpSound() {
+async function playTimeUpSound() {
   const context = getAudioContext();
   if (!context) return;
-  void context.resume?.();
+  await resumeAudioContext(context);
   const now = context.currentTime;
   const output = context.createGain();
   output.gain.setValueAtTime(0.0001, now);
@@ -855,6 +955,10 @@ function playTimeUpSound() {
 async function primeZapSound() {
   const context = getAudioContext();
   if (!context) return;
+  await resumeAudioContext(context);
+}
+
+async function resumeAudioContext(context: AudioContext): Promise<void> {
   if (context.state === "suspended") await context.resume().catch(() => undefined);
 }
 
