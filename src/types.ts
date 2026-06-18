@@ -12,7 +12,7 @@ export type Contestant = {
 export type ZapBattleSession = {
   id: string;
   title: string;
-  status: "draft" | "live" | "ended";
+  status: "draft" | "live" | "paused" | "ended";
   startsAt: number | null;
   endsAt: number | null;
   durationSeconds: number;

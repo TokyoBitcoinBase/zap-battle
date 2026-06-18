@@ -377,6 +377,10 @@ export function BattleDisplay({
     await postAdminAction("start", { session });
   }
 
+  async function togglePauseBattle() {
+    await postAdminAction("pause");
+  }
+
   async function endBattle() {
     const confirmed = window.confirm("End this battle now? The timer will keep running unless you confirm.");
     if (!confirmed) return;
@@ -392,9 +396,9 @@ export function BattleDisplay({
     });
   }
 
-  async function postAdminAction(action: "start" | "end", body: unknown) {
+  async function postAdminAction(action: "start" | "pause" | "end", body?: unknown) {
     setAdminWorking(true);
-    setAdminActionStatus(action === "start" ? "Starting..." : "Ending...");
+    setAdminActionStatus(action === "start" ? "Starting..." : action === "pause" ? session.status === "paused" ? "Resuming..." : "Pausing..." : "Ending...");
     try {
       const adminToken = currentAdminToken(session.id);
       const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(session.id)}/${action}`, {
@@ -408,7 +412,7 @@ export function BattleDisplay({
         return;
       }
       onSessionChange?.(json.session);
-      setAdminActionStatus(action === "start" ? "Started" : "Ended");
+      setAdminActionStatus(action === "start" ? "Started" : action === "pause" ? json.session.status === "live" ? "Resumed" : "Paused" : "Ended");
       window.setTimeout(() => setAdminActionStatus(""), 1600);
     } catch (error) {
       setAdminActionStatus(error instanceof Error ? error.message : "Admin action failed.");
@@ -474,8 +478,11 @@ export function BattleDisplay({
           ) : null}
           {adminEnabled && hasAdminToken ? (
             <div className="display-admin-actions">
-              <button className="button gold" type="button" onClick={() => void startBattle()} disabled={adminWorking || session.status === "live"}>
+              <button className="button gold" type="button" onClick={() => void startBattle()} disabled={adminWorking || session.status === "live" || session.status === "paused"}>
                 Start
+              </button>
+              <button className="button gold" type="button" onClick={() => void togglePauseBattle()} disabled={adminWorking || (session.status !== "live" && session.status !== "paused")}>
+                {session.status === "paused" ? "Resume" : "Pause"}
               </button>
               <button className="button" type="button" onClick={() => void endBattle()} disabled={adminWorking || session.status === "ended"}>
                 End
@@ -495,7 +502,7 @@ export function BattleDisplay({
           ) : null}
           <div className={`status ${session.status === "live" ? "live" : ""}`}>
             <span className="status-dot" aria-hidden="true" />
-            <strong>{session.status === "live" ? "Live" : session.status === "ended" ? "Ended" : copy.paused}</strong>
+            <strong>{session.status === "live" ? "Live" : session.status === "ended" ? "Ended" : session.status === "paused" ? copy.paused : copy.ready}</strong>
           </div>
         </div>
       </header>
@@ -811,11 +818,15 @@ function timerState(session: ZapBattleSession, now: number, copy: typeof COPY[Lo
     return { label: copy.finalResult, value: "00:00", phase: "ended" };
   }
 
+  if (session.status === "paused") {
+    return { label: copy.paused, value: formatDuration(session.durationSeconds), phase: "ready" };
+  }
+
   if (!session.startsAt || session.status !== "live") {
     return { label: copy.ready, value: formatDuration(session.durationSeconds), phase: "ready" };
   }
 
-  const endAt = session.startsAt + session.durationSeconds;
+  const endAt = session.endsAt ?? session.startsAt + session.durationSeconds;
   const remaining = endAt - now;
   if (remaining > 0) {
     return { label: copy.timeLeft, value: formatDuration(remaining), phase: remaining <= 30 ? "urgent" : "live" };

@@ -8,7 +8,7 @@ export function normalizeSession(input: unknown, fallbackId: string): ZapBattleS
   const title = readString(value.title, "Zap Battle").slice(0, 80);
   const durationSeconds = clampInteger(value.durationSeconds, 1, 60 * 60 * 3, 10 * 60);
   const graceSeconds = clampInteger(value.graceSeconds, 10, 30, 30);
-  const status = value.status === "live" || value.status === "ended" ? value.status : "draft";
+  const status = value.status === "live" || value.status === "paused" || value.status === "ended" ? value.status : "draft";
   const startsAt = readNullableNumber(value.startsAt);
   const endsAt = readNullableNumber(value.endsAt);
   const contestantsValue = isRecord(value.contestants) ? value.contestants : {};
