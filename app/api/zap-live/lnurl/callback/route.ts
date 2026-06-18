@@ -8,7 +8,7 @@ import { ensureSession } from "@/src/server/session-store";
 import { zapRequestRelaysFromEnv } from "@/src/relays";
 
 export async function GET(request: NextRequest) {
-  const token = request.nextUrl.searchParams.get("token") ?? "";
+  const token = request.nextUrl.searchParams.get("t") ?? request.nextUrl.searchParams.get("token") ?? "";
   const amount = Number(request.nextUrl.searchParams.get("amount") ?? 0);
   const comment = (request.nextUrl.searchParams.get("comment") ?? "").slice(0, 120);
   try {

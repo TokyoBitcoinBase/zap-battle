@@ -123,7 +123,7 @@ export function BattleAdminEditor({
   const shouldCreateMissingTemporaryProfiles = createMissingTemporaryProfiles && missingTemporaryProfileSides.length > 0;
 
   useEffect(() => {
-    const storedToken = localStorage.getItem(adminTokenStorageKey(sessionId)) ?? localStorage.getItem(globalAdminTokenStorageKey()) ?? "";
+    const storedToken = sessionStorage.getItem(adminTokenStorageKey(sessionId)) ?? sessionStorage.getItem(globalAdminTokenStorageKey()) ?? "";
     setAdminToken(storedToken);
     let cancelled = false;
     async function loadSession() {
@@ -152,8 +152,8 @@ export function BattleAdminEditor({
   }, [copy.loadingFailed, sessionId]);
 
   useEffect(() => {
-    localStorage.setItem(adminTokenStorageKey(sessionId), adminToken);
-    localStorage.setItem(globalAdminTokenStorageKey(), adminToken);
+    sessionStorage.setItem(adminTokenStorageKey(sessionId), adminToken);
+    sessionStorage.setItem(globalAdminTokenStorageKey(), adminToken);
   }, [adminToken, sessionId]);
 
   async function saveSession(

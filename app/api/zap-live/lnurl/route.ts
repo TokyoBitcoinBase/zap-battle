@@ -4,7 +4,7 @@ import { verifyZapLiveToken } from "@/src/server/lnurl-token";
 import { ensureSession } from "@/src/server/session-store";
 
 export async function GET(request: NextRequest) {
-  const token = request.nextUrl.searchParams.get("token") ?? "";
+  const token = request.nextUrl.searchParams.get("t") ?? request.nextUrl.searchParams.get("token") ?? "";
   try {
     const payload = verifyZapLiveToken(token);
     const session = await ensureSession(payload.sessionId);
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const baseUrl = siteUrlFromRequest(request);
     return NextResponse.json({
       tag: "payRequest",
-      callback: `${baseUrl}/api/zap-live/lnurl/callback?token=${encodeURIComponent(token)}`,
+      callback: `${baseUrl}/c?t=${encodeURIComponent(token)}`,
       minSendable: targetMetadata.minSendable,
       maxSendable: targetMetadata.maxSendable,
       metadata: JSON.stringify([

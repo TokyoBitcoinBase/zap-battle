@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   });
   const baseUrl = siteUrlFromRequest(request);
   return NextResponse.json({
-    lnurlPayUrl: `${baseUrl}/api/zap-live/lnurl?token=${encodeURIComponent(token)}`,
+    lnurlPayUrl: `${baseUrl}/l?t=${encodeURIComponent(token)}`,
     expiresAt
   });
 }

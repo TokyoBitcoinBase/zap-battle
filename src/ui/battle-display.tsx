@@ -17,6 +17,12 @@ type ConfettiPiece = {
   color: string;
 };
 
+type CelebrationTarget = BattleSide | "center";
+type CelebrationQueueItem = {
+  side: CelebrationTarget;
+  withSound: boolean;
+};
+
 type Locale = "en" | "ja";
 
 const CONFETTI_COLORS = ["#ffd238", "#20d4ff", "#ff3e88", "#20f0b0", "#ffffff", "#ff8a1f"];
@@ -105,6 +111,7 @@ export function BattleDisplay({
   const [adminWorking, setAdminWorking] = useState(false);
   const [hasAdminToken, setHasAdminToken] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
+  const [celebrationNonce, setCelebrationNonce] = useState(0);
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
   const seenReceiptIdsRef = useRef<Set<string>>(new Set());
   const latestReceiptCreatedAtRef = useRef(0);
@@ -114,10 +121,13 @@ export function BattleDisplay({
   const finalSoundSessionRef = useRef<string | null>(session.status === "ended" ? `${session.id}:${session.startsAt ?? "ended"}` : null);
   const soundEnabledRef = useRef(false);
   const celebrationTimerRef = useRef<number | undefined>(undefined);
+  const celebrationQueueRef = useRef<CelebrationQueueItem[]>([]);
+  const celebrationActiveRef = useRef(false);
+  const [celebrationSide, setCelebrationSide] = useState<CelebrationTarget>("center");
   const finalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : null;
   const displayItems = finalItems ?? items;
-  const leftFeedItems = displayItems.filter((item) => item.side === "left").slice(0, 3);
-  const rightFeedItems = displayItems.filter((item) => item.side === "right").slice(0, 3);
+  const leftFeedItems = displayItems.filter((item) => item.side === "left");
+  const rightFeedItems = displayItems.filter((item) => item.side === "right");
   const copy = COPY[locale];
   const showDemoControls = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEMO_ZAPS === "true";
 
@@ -171,7 +181,7 @@ export function BattleDisplay({
       const endAt = startsAt + session.durationSeconds;
       if (currentSeconds() < endAt) return;
       timeUpSessionRef.current = timeUpKey;
-      triggerCelebration(false);
+      enqueueCelebration("center", false);
       if (soundEnabled) void playTimeUpSound();
     };
     checkTimeUp();
@@ -208,18 +218,22 @@ export function BattleDisplay({
     if (session.status === "ended" && session.finalResult) return;
     function addReceipts(receipts: ZapReceiptItem[]) {
       if (receipts.length === 0) return;
-      const hasNewReceipt = receipts.some((item) => !seenReceiptIdsRef.current.has(item.id));
+      const newReceiptSides: BattleSide[] = [];
+      receipts.forEach((item) => {
+        if (seenReceiptIdsRef.current.has(item.id)) return;
+        seenReceiptIdsRef.current.add(item.id);
+        newReceiptSides.push(item.side);
+      });
       setItems((current) => {
         const byId = new Map(current.map((item) => [item.id, item]));
         receipts.forEach((item) => {
-          seenReceiptIdsRef.current.add(item.id);
           byId.set(item.id, mergeZapReceiptItem(byId.get(item.id), item));
         });
         return Array.from(byId.values())
           .sort((a, b) => b.createdAt - a.createdAt)
           .slice(0, 40);
       });
-      if (hasNewReceipt) triggerCelebration(soundEnabledRef.current);
+      enqueueCelebrations(newReceiptSides, soundEnabledRef.current);
       receipts.forEach((item) => {
         latestReceiptCreatedAtRef.current = Math.max(latestReceiptCreatedAtRef.current, item.createdAt);
       });
@@ -257,7 +271,7 @@ export function BattleDisplay({
       }
     }
 
-    const intervalId = window.setInterval(() => void catchUp(), 10_000);
+    const intervalId = window.setInterval(() => void catchUp(), 5_000);
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") void catchUp();
     };
@@ -305,18 +319,41 @@ export function BattleDisplay({
       },
       ...current
     ].slice(0, 20));
-    triggerCelebration(soundEnabledRef.current);
+    enqueueCelebration(side, soundEnabledRef.current);
   }
 
-  function triggerCelebration(withSound: boolean) {
-    window.clearTimeout(celebrationTimerRef.current);
-    setConfetti(createConfetti());
+  function enqueueCelebrations(sides: BattleSide[], withSound: boolean) {
+    if (sides.length === 0) return;
+    celebrationQueueRef.current.push(...sides.map((side) => ({ side, withSound })));
+    runNextCelebration();
+  }
+
+  function enqueueCelebration(side: CelebrationTarget, withSound: boolean) {
+    celebrationQueueRef.current.push({ side, withSound });
+    runNextCelebration();
+  }
+
+  function runNextCelebration() {
+    if (celebrationActiveRef.current) return;
+    const next = celebrationQueueRef.current.shift();
+    if (!next) return;
+
+    celebrationActiveRef.current = true;
+    setCelebrationNonce((current) => current + 1);
+    setCelebrationSide(next.side);
+    setConfetti(createConfetti(next.side));
     setCelebrating(true);
-    if (withSound) void playZapSound();
+    if (next.withSound) void playZapSound();
+
+    window.clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = window.setTimeout(() => {
       setCelebrating(false);
       setConfetti([]);
-    }, 1100);
+      celebrationActiveRef.current = false;
+      if (celebrationQueueRef.current.length > 0) {
+        celebrationTimerRef.current = window.setTimeout(runNextCelebration, 80);
+      }
+    }, 980);
   }
 
   function toggleLocale() {
@@ -383,7 +420,7 @@ export function BattleDisplay({
   return (
     <main className="battle-shell">
       {celebrating ? (
-        <div className="celebration" aria-hidden="true">
+        <div className={`celebration ${celebrationSide}`} aria-hidden="true" key={celebrationNonce}>
           <div className="burst-text">ZAP!</div>
           {confetti.map((piece) => (
             <span
@@ -446,6 +483,16 @@ export function BattleDisplay({
               {adminActionStatus ? <span>{adminActionStatus}</span> : null}
             </div>
           ) : null}
+          {showDemoControls ? (
+            <div className="demo-actions" aria-label="Demo Zap controls">
+              <button className="button primary" type="button" onClick={() => addDemoZap("left")}>
+                {copy.demoZap}: {displayContestantName(session.contestants.left)}
+              </button>
+              <button className="button primary" type="button" onClick={() => addDemoZap("right")}>
+                {copy.demoZap}: {displayContestantName(session.contestants.right)}
+              </button>
+            </div>
+          ) : null}
           <div className={`status ${session.status === "live" ? "live" : ""}`}>
             <span className="status-dot" aria-hidden="true" />
             <strong>{session.status === "live" ? "Live" : session.status === "ended" ? "Ended" : copy.paused}</strong>
@@ -495,17 +542,13 @@ export function BattleDisplay({
               sessionId={session.id}
               contestant={session.contestants.left}
               copy={copy}
-              showDemoControls={showDemoControls}
               stats={leftStats}
-              onDemoZap={() => addDemoZap("left")}
             />
             <ContestantStage
               sessionId={session.id}
               contestant={session.contestants.right}
               copy={copy}
-              showDemoControls={showDemoControls}
               stats={rightStats}
-              onDemoZap={() => addDemoZap("right")}
             />
           </section>
           <ZapFeed
@@ -659,16 +702,12 @@ function ContestantStage({
   sessionId,
   contestant,
   copy,
-  showDemoControls,
-  stats,
-  onDemoZap
+  stats
 }: {
   sessionId: string;
   contestant: Contestant;
   copy: typeof COPY[Locale];
-  showDemoControls: boolean;
   stats: ReturnType<typeof calculateStats>;
-  onDemoZap(): void;
 }) {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrStatus, setQrStatus] = useState("");
@@ -712,8 +751,11 @@ function ContestantStage({
       <div className="player-head">
         <h2>{displayContestantName(contestant)}</h2>
         <div className="score-mini">
-          {stats.totalSats.toLocaleString()}
-          <small>sats</small>
+          <div>
+            <strong>{stats.totalSats.toLocaleString()}</strong>
+            <small>sats</small>
+          </div>
+          <span>↓ {stats.count} zaps / ⚡ {stats.averageSats.toLocaleString()} {copy.avgSats}</span>
         </div>
       </div>
 
@@ -725,25 +767,6 @@ function ContestantStage({
         <div className="lightning-address">{contestant.lightningAddress || copy.lightningMissing}</div>
       </div>
 
-      <div>
-        <div className="total-card">
-          <h3>{copy.totalReceived}</h3>
-          <strong>{stats.totalSats.toLocaleString()}</strong>
-          <small>sats</small>
-          <div className="metric-row">
-            <span>↓ {stats.count} zaps</span>
-            <span>⚡ {stats.averageSats.toLocaleString()} {copy.avgSats}</span>
-          </div>
-        </div>
-
-        <div className="profile-empty">
-          {showDemoControls ? (
-            <button className="button primary" type="button" onClick={onDemoZap}>
-              {copy.demoZap}
-            </button>
-          ) : null}
-        </div>
-      </div>
     </article>
   );
 }
@@ -870,7 +893,7 @@ function adminHeaders(adminToken: string): HeadersInit {
 }
 
 function currentAdminToken(sessionId: string): string {
-  return localStorage.getItem(adminTokenStorageKey(sessionId)) ?? localStorage.getItem(globalAdminTokenStorageKey()) ?? "";
+  return sessionStorage.getItem(adminTokenStorageKey(sessionId)) ?? sessionStorage.getItem(globalAdminTokenStorageKey()) ?? "";
 }
 
 function adminTokenStorageKey(sessionId: string): string {
@@ -881,14 +904,16 @@ function globalAdminTokenStorageKey(): string {
   return "zap-battle:admin-token";
 }
 
-function createConfetti(): ConfettiPiece[] {
+function createConfetti(target: CelebrationTarget): ConfettiPiece[] {
+  const centerX = target === "left" ? 25 : target === "right" ? 75 : 50;
+  const centerY = target === "center" ? 42 : 36;
   return Array.from({ length: 72 }, (_, index) => {
     const side = index % 2 === 0 ? -1 : 1;
     const spread = 80 + Math.random() * 260;
     return {
       id: `${Date.now()}-${index}`,
-      x: `${46 + Math.random() * 8}%`,
-      y: `${40 + Math.random() * 12}%`,
+      x: `${centerX - 4 + Math.random() * 8}%`,
+      y: `${centerY - 6 + Math.random() * 12}%`,
       dx: `${side * spread}px`,
       dy: `${-220 + Math.random() * 420}px`,
       r: `${Math.random() * 360}deg`,

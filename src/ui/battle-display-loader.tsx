@@ -17,7 +17,7 @@ export function BattleDisplayLoader({ adminEnabled = false, sessionId }: { admin
     let cancelled = false;
     async function loadSession() {
       try {
-        const adminToken = localStorage.getItem(adminTokenStorageKey(sessionId)) ?? localStorage.getItem(globalAdminTokenStorageKey()) ?? "";
+        const adminToken = sessionStorage.getItem(adminTokenStorageKey(sessionId)) ?? sessionStorage.getItem(globalAdminTokenStorageKey()) ?? "";
         const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(sessionId)}${adminEnabled ? "?create=1" : ""}`, {
           cache: "no-store",
           headers: adminEnabled ? adminHeaders(adminToken) : undefined

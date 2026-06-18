@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 export function BattleLauncher() {
+  const router = useRouter();
   const [battleId, setBattleId] = useState("demo");
   const [adminToken, setAdminToken] = useState("");
   const [verified, setVerified] = useState(false);
@@ -14,7 +16,7 @@ export function BattleLauncher() {
   const operatorPath = `${displayPath}?admin=1`;
 
   useEffect(() => {
-    const stored = localStorage.getItem(globalAdminTokenStorageKey()) ?? "";
+    const stored = sessionStorage.getItem(globalAdminTokenStorageKey()) ?? "";
     setAdminToken(stored);
     if (stored) void verifyToken(stored);
   }, []);
@@ -28,7 +30,7 @@ export function BattleLauncher() {
         headers: adminHeaders(token)
       });
       if (!response.ok) throw new Error("Admin token is invalid.");
-      localStorage.setItem(globalAdminTokenStorageKey(), token.trim());
+      sessionStorage.setItem(globalAdminTokenStorageKey(), token.trim());
       setVerified(true);
       setStatus("Admin token verified.");
     } catch (error) {
@@ -40,28 +42,48 @@ export function BattleLauncher() {
   }
 
   function rememberSessionToken() {
-    localStorage.setItem(globalAdminTokenStorageKey(), adminToken.trim());
-    localStorage.setItem(adminTokenStorageKey(normalizedId), adminToken.trim());
+    sessionStorage.setItem(globalAdminTokenStorageKey(), adminToken.trim());
+    sessionStorage.setItem(adminTokenStorageKey(normalizedId), adminToken.trim());
+  }
+
+  function openOperatorDisplay() {
+    rememberSessionToken();
+    router.push(operatorPath);
   }
 
   return (
-    <section className="launcher">
-      <label className="field">
-        <span>Admin Token</span>
-        <input
-          onChange={(event) => {
-            setAdminToken(event.target.value);
-            setVerified(false);
-          }}
-          placeholder="Required in production"
-          type="password"
-          value={adminToken}
-        />
-      </label>
-      <button className="button gold" disabled={checking} onClick={() => void verifyToken()} type="button">
-        {checking ? "Checking..." : "Unlock Battle Setup"}
-      </button>
-      {status ? <p className="admin-status">{status}</p> : null}
+    <form
+      className="launcher"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (checking) return;
+        if (verified) {
+          openOperatorDisplay();
+          return;
+        }
+        void verifyToken();
+      }}
+    >
+      {!verified ? (
+        <>
+          <label className="field">
+            <span>Admin Token</span>
+            <input
+              onChange={(event) => {
+                setAdminToken(event.target.value);
+                setVerified(false);
+              }}
+              placeholder="Required in production"
+              type="password"
+              value={adminToken}
+            />
+          </label>
+          <button className="button gold" disabled={checking} type="submit">
+            {checking ? "Checking..." : "Unlock Battle Setup"}
+          </button>
+        </>
+      ) : null}
+      {status ? <p className={`admin-status ${verified ? "verified" : ""}`}>{status}</p> : null}
 
       {verified ? (
         <>
@@ -90,7 +112,7 @@ export function BattleLauncher() {
           </div>
         </>
       ) : null}
-    </section>
+    </form>
   );
 }
 
