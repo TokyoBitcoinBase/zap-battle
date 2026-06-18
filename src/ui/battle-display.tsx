@@ -107,6 +107,7 @@ export function BattleDisplay({
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const [adminOpen, setAdminOpen] = useState(false);
+  const [utilityOpen, setUtilityOpen] = useState(false);
   const [adminActionStatus, setAdminActionStatus] = useState("");
   const [adminWorking, setAdminWorking] = useState(false);
   const [hasAdminToken, setHasAdminToken] = useState(false);
@@ -150,6 +151,20 @@ export function BattleDisplay({
   useEffect(() => {
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
+
+  useEffect(() => {
+    if (!utilityOpen) return;
+    const closeUtility = () => setUtilityOpen(false);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeUtility();
+    };
+    window.addEventListener("click", closeUtility);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("click", closeUtility);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [utilityOpen]);
 
   useEffect(() => {
     return () => window.clearTimeout(celebrationTimerRef.current);
@@ -465,17 +480,6 @@ export function BattleDisplay({
         </div>
 
         <div className="top-actions">
-          <button className="button" type="button" onClick={toggleLocale}>
-            {locale === "en" ? "日本語" : "English"}
-          </button>
-          <button className="button gold" type="button" onClick={toggleSound}>
-            {copy.sound} {soundEnabled ? "On" : "Off"}
-          </button>
-          {adminEnabled ? (
-            <button className="button" type="button" onClick={() => setAdminOpen(true)}>
-              {copy.admin}
-            </button>
-          ) : null}
           {adminEnabled && hasAdminToken ? (
             <div className="display-admin-actions">
               <button className="button gold" type="button" onClick={() => void startBattle()} disabled={adminWorking || session.status === "live" || session.status === "paused"}>
@@ -490,6 +494,39 @@ export function BattleDisplay({
               {adminActionStatus ? <span>{adminActionStatus}</span> : null}
             </div>
           ) : null}
+          <div className={`utility-menu ${utilityOpen ? "open" : ""}`} onClick={(event) => event.stopPropagation()}>
+            <button className="button utility-trigger" type="button" onClick={() => setUtilityOpen((current) => !current)}>
+              Settings
+            </button>
+            {utilityOpen ? (
+              <div className="utility-menu-panel">
+                <button className="button" type="button" onClick={() => {
+                  toggleLocale();
+                  setUtilityOpen(false);
+                }}>
+                  {locale === "en" ? "日本語" : "English"}
+                </button>
+                <button className="button gold" type="button" onClick={() => {
+                  toggleSound();
+                  setUtilityOpen(false);
+                }}>
+                  {copy.sound} {soundEnabled ? "On" : "Off"}
+                </button>
+                {adminEnabled ? (
+                  <button className="button" type="button" onClick={() => {
+                    setUtilityOpen(false);
+                    setAdminOpen(true);
+                  }}>
+                    {copy.admin}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          <div className={`status ${session.status === "live" ? "live" : ""}`}>
+            <span className="status-dot" aria-hidden="true" />
+            <strong>{session.status === "live" ? "Live" : session.status === "ended" ? "Ended" : session.status === "paused" ? copy.paused : copy.ready}</strong>
+          </div>
           {showDemoControls ? (
             <div className="demo-actions" aria-label="Demo Zap controls">
               <button className="button primary" type="button" onClick={() => addDemoZap("left")}>
@@ -500,10 +537,6 @@ export function BattleDisplay({
               </button>
             </div>
           ) : null}
-          <div className={`status ${session.status === "live" ? "live" : ""}`}>
-            <span className="status-dot" aria-hidden="true" />
-            <strong>{session.status === "live" ? "Live" : session.status === "ended" ? "Ended" : session.status === "paused" ? copy.paused : copy.ready}</strong>
-          </div>
         </div>
       </header>
 
