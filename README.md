@@ -4,6 +4,12 @@ Zap Battle is an event scoreboard for dance battles and live competitions. Audie
 
 The app is designed to be deployed on Vercel and embedded in WordPress with an iframe. WordPress only displays the public page; the web app and API live on Vercel.
 
+Live demo:
+
+```text
+https://zap-battle.tokyobitcoin.space
+```
+
 ## Features
 
 - Two-player Zap battle display
@@ -98,7 +104,7 @@ Use the public display URL without `?admin=1`.
 
 ```html
 <iframe
-  src="https://zap-battle.vercel.app/zap-battle/tokyo-final/display"
+  src="https://zap-battle.example.com/zap-battle/tokyo-final/display"
   style="width:100%;min-height:900px;border:0;"
   loading="lazy"
   referrerpolicy="strict-origin-when-cross-origin"
@@ -109,7 +115,7 @@ Use the public display URL without `?admin=1`.
 Operators should use:
 
 ```text
-https://zap-battle.vercel.app/zap-battle/tokyo-final/display?admin=1
+https://zap-battle.example.com/zap-battle/tokyo-final/display?admin=1
 ```
 
 ## Production Flow
@@ -161,7 +167,7 @@ MIT. See [LICENSE](LICENSE).
 
 ## Status
 
-This is an MVP intended for event use and employer handoff.
+This is an MVP intended for event use.
 
 Still required before public OSS release:
 

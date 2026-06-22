@@ -1,13 +1,13 @@
 # Next Steps
 
-## Yutaro
+## Project Owner
 
-1. Confirm the employer can create or provide a GitHub repository.
-2. Confirm the employer can connect that repository to Vercel.
+1. Confirm the GitHub repository.
+2. Confirm the Vercel project.
 3. Confirm the WordPress page where the iframe will be pasted.
 4. Confirm the two first test contestants and their Lightning Addresses.
 
-## Employer
+## Event Organizer
 
 1. Prepare GitHub access.
 2. Prepare Vercel access.
