@@ -36,7 +36,6 @@ const COPY = {
     finalResult: "Final Result",
     finalScore: "Final Score",
     finalZaps: "Final Zaps",
-    noComment: "No comment",
     noZaps: "No zaps in this battle.",
     paused: "Paused",
     qrNotReady: "QR not ready",
@@ -65,7 +64,6 @@ const COPY = {
     finalResult: "最終結果",
     finalScore: "最終スコア",
     finalZaps: "最終Zap",
-    noComment: "コメントなし",
     noZaps: "このバトルのZapはありません。",
     paused: "停止中",
     qrNotReady: "QR未準備",
@@ -660,7 +658,7 @@ function FeedLane({
                   <span className="feed-arrow" aria-hidden="true">-&gt;</span>
                   <span className="feed-target">{displayContestantName(contestant)}</span>
                 </p>
-                <small className="feed-comment">{item.comment || copy.noComment}</small>
+                {item.comment.trim() ? <small className="feed-comment">{item.comment}</small> : null}
               </div>
               <strong>{item.amountSats.toLocaleString()} sats</strong>
             </li>

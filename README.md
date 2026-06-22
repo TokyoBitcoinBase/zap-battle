@@ -155,12 +155,15 @@ wss://nos.lol
 
 See [SECURITY.md](SECURITY.md).
 
+## License
+
+MIT. See [LICENSE](LICENSE).
+
 ## Status
 
 This is an MVP intended for event use and employer handoff.
 
 Still required before public OSS release:
 
-- Decide license with the employer.
 - Verify real Zap end-to-end with an actual Lightning Address and wallet.
 - Finalize README/WordPress deployment details for the production domain.
