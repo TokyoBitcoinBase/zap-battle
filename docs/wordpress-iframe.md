@@ -15,7 +15,7 @@ Paste this into a WordPress custom HTML block:
 
 ```html
 <iframe
-  src="https://zap-battle.example.com/zap-battle/SESSION_ID/display"
+  src="https://zap-battle.vercel.app/zap-battle/SESSION_ID/display"
   style="width:100%;min-height:900px;border:0;"
   loading="lazy"
   referrerpolicy="strict-origin-when-cross-origin"
@@ -25,7 +25,6 @@ Paste this into a WordPress custom HTML block:
 
 Replace:
 
-- `zap-battle.example.com` with the Vercel production domain.
 - `SESSION_ID` with the battle session ID.
 
 ## Admin Page
@@ -34,7 +33,7 @@ If the organizer wants the admin UI inside WordPress too:
 
 ```html
 <iframe
-  src="https://zap-battle.example.com/zap-battle/admin/SESSION_ID"
+  src="https://zap-battle.vercel.app/zap-battle/admin/SESSION_ID"
   style="width:100%;min-height:1000px;border:0;"
   loading="lazy"
   referrerpolicy="strict-origin-when-cross-origin"
@@ -47,7 +46,7 @@ For production, admin URLs must require an admin token or another access check.
 The Vercel app can also be opened directly without WordPress:
 
 ```text
-https://zap-battle.example.com/zap-battle/SESSION_ID/display
+https://zap-battle.vercel.app/zap-battle/SESSION_ID/display
 ```
 
 This is fine for public display. The admin page must be protected by `ADMIN_TOKEN` before real events.

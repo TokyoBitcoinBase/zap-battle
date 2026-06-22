@@ -4,9 +4,8 @@
 
 1. Confirm the employer can create or provide a GitHub repository.
 2. Confirm the employer can connect that repository to Vercel.
-3. Decide the production domain.
-4. Confirm the WordPress page where the iframe will be pasted.
-5. Confirm the two first test contestants and their Lightning Addresses.
+3. Confirm the WordPress page where the iframe will be pasted.
+4. Confirm the two first test contestants and their Lightning Addresses.
 
 ## Employer
 

@@ -6,7 +6,7 @@ The app is deployed to Vercel from the employer's GitHub repository.
 
 - Framework: Next.js
 - Runtime: Vercel Functions / Next.js Route Handlers
-- Production domain: `zap-battle.example.com`
+- Production domain: `zap-battle.vercel.app`
 - WordPress embed: iframe
 
 ## Environment Variables
@@ -22,7 +22,7 @@ NOSTR_SESSION_RELAYS=wss://yabu.me,wss://relay.primal.net,wss://relay.damus.io,w
 NEXT_PUBLIC_NOSTR_SESSION_RELAYS=wss://yabu.me,wss://relay.primal.net,wss://relay.damus.io,wss://nos.lol
 ZAP_REQUEST_RELAYS=wss://yabu.me,wss://relay.primal.net,wss://nos.lol
 ALLOWED_ORIGINS=https://example.com
-NEXT_PUBLIC_SITE_URL=https://zap-battle.example.com
+NEXT_PUBLIC_SITE_URL=https://zap-battle.vercel.app
 ```
 
 Do not store service private keys in WordPress or browser JavaScript.
@@ -34,8 +34,8 @@ The deployed Vercel site can be used directly, not only through a WordPress ifra
 Recommended public URLs:
 
 ```text
-https://zap-battle.example.com/zap-battle/<session_id>/display
-https://zap-battle.example.com/zap-battle/<session_id>/display?admin=1
+https://zap-battle.vercel.app/zap-battle/<session_id>/display
+https://zap-battle.vercel.app/zap-battle/<session_id>/display?admin=1
 ```
 
 The display URL without `?admin=1` is intentionally public.
@@ -70,7 +70,7 @@ If neither `SERVICE_PRIVATE_KEY` nor `SERVICE_NSEC` is set, the local developmen
 3. Import it from Vercel.
 4. Add environment variables.
 5. Deploy Preview.
-6. Assign production domain.
+6. Confirm the production domain.
 7. Put the production iframe URL into WordPress.
 
 ## Runtime Boundary

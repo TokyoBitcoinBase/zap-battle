@@ -98,7 +98,7 @@ Use the public display URL without `?admin=1`.
 
 ```html
 <iframe
-  src="https://zap-battle.example.com/zap-battle/tokyo-final/display"
+  src="https://zap-battle.vercel.app/zap-battle/tokyo-final/display"
   style="width:100%;min-height:900px;border:0;"
   loading="lazy"
   referrerpolicy="strict-origin-when-cross-origin"
@@ -109,7 +109,7 @@ Use the public display URL without `?admin=1`.
 Operators should use:
 
 ```text
-https://zap-battle.example.com/zap-battle/tokyo-final/display?admin=1
+https://zap-battle.vercel.app/zap-battle/tokyo-final/display?admin=1
 ```
 
 ## Production Flow
@@ -166,4 +166,3 @@ This is an MVP intended for event use and employer handoff.
 Still required before public OSS release:
 
 - Verify real Zap end-to-end with an actual Lightning Address and wallet.
-- Finalize README/WordPress deployment details for the production domain.
