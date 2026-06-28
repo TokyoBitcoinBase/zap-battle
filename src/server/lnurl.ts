@@ -44,6 +44,11 @@ export async function fetchLnurlPayMetadata(lightningAddressOrUrl: string): Prom
 }
 
 export function siteUrlFromRequest(request: Request): string {
+  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  if (forwardedHost) {
+    const forwardedProto = request.headers.get("x-forwarded-proto") || new URL(request.url).protocol.replace(/:$/, "");
+    return `${forwardedProto}://${forwardedHost}`;
+  }
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
   if (configured) return configured;
   const url = new URL(request.url);
