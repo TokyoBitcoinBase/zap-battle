@@ -439,7 +439,7 @@ export function BattleDisplay({
     <main className="battle-shell">
       {celebrating ? (
         <div className={`celebration ${celebrationSide}`} aria-hidden="true" key={celebrationNonce}>
-          <div className="burst-text">ZAP!</div>
+          <div className="burst-text">{celebrationSide === "center" ? "TIME UP!" : "ZAP!"}</div>
           {confetti.map((piece) => (
             <span
               className="confetti"
