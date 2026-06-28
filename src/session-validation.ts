@@ -1,3 +1,4 @@
+import { normalizeNostrPubkey } from "@/src/nostr-pubkey";
 import type { BattleSide, Contestant, ZapBattleFinalResult, ZapBattleSession, ZapReceiptItem } from "@/src/types";
 
 const SIDES: BattleSide[] = ["left", "right"];
@@ -47,7 +48,7 @@ function normalizeContestant(input: unknown, side: BattleSide): Contestant {
     side,
     displayName: readString(value.displayName, "").slice(0, 80),
     lightningAddress: readString(value.lightningAddress, "").slice(0, 160),
-    nostrPubkey: optionalString(value.nostrPubkey, 120),
+    nostrPubkey: normalizeNostrPubkey(optionalString(value.nostrPubkey, 120)),
     profileImageUrl: optionalString(value.profileImageUrl, 600),
     temporaryProfile: value.temporaryProfile === true
   };

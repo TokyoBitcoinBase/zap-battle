@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSession } from "@/src/server/session-store";
 import { signZapLiveToken } from "@/src/server/lnurl-token";
-import { siteUrlFromRequest } from "@/src/server/lnurl";
+import { fetchLnurlPayMetadata, siteUrlFromRequest } from "@/src/server/lnurl";
 import type { BattleSide } from "@/src/types";
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 12;
@@ -18,6 +18,14 @@ export async function POST(request: NextRequest) {
   const contestant = session.contestants[side];
   if (!contestant.lightningAddress.trim()) {
     return NextResponse.json({ error: "missing_lightning_address" }, { status: 400 });
+  }
+  try {
+    await fetchLnurlPayMetadata(contestant.lightningAddress);
+  } catch (error) {
+    return NextResponse.json({
+      error: "invalid_lightning_address",
+      reason: error instanceof Error ? error.message : "Failed to validate Lightning Address."
+    }, { status: 400 });
   }
 
   const expiresAt = currentSeconds() + TOKEN_TTL_SECONDS;

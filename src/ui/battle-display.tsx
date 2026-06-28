@@ -771,9 +771,9 @@ function ContestantStage({
           }
         });
         if (!cancelled) setQrDataUrl(dataUrl);
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setQrStatus(copy.qrNotReady);
+          setQrStatus(error instanceof Error ? error.message : copy.qrNotReady);
           setQrDataUrl("");
         }
       }
@@ -838,8 +838,8 @@ async function qrPayloadForContestant(sessionId: string, contestant: Contestant)
       side: contestant.side
     })
   });
-  if (!response.ok) throw new Error("Failed to create LNURL token.");
-  const json = await response.json() as { lnurlPayUrl?: string };
+  const json = await response.json().catch(() => ({})) as { lnurlPayUrl?: string; reason?: string; error?: string };
+  if (!response.ok) throw new Error(json.reason || json.error || "Failed to create LNURL token.");
   if (!json.lnurlPayUrl) throw new Error("LNURL token response is missing lnurlPayUrl.");
   return `lightning:${encodeLnurl(json.lnurlPayUrl)}`;
 }
