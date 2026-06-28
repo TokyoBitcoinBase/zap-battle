@@ -841,7 +841,7 @@ async function qrPayloadForContestant(sessionId: string, contestant: Contestant)
   if (!response.ok) throw new Error("Failed to create LNURL token.");
   const json = await response.json() as { lnurlPayUrl?: string };
   if (!json.lnurlPayUrl) throw new Error("LNURL token response is missing lnurlPayUrl.");
-  return encodeLnurl(json.lnurlPayUrl);
+  return `lightning:${encodeLnurl(json.lnurlPayUrl)}`;
 }
 
 function timerState(session: ZapBattleSession, now: number, copy: typeof COPY[Locale]): { label: string; value: string; phase: string } {
