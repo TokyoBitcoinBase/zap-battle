@@ -26,6 +26,7 @@ type CelebrationQueueItem = {
 type Locale = "en" | "ja";
 
 const CONFETTI_COLORS = ["#ffd238", "#20d4ff", "#ff3e88", "#20f0b0", "#ffffff", "#ff8a1f"];
+const FEED_ITEMS_PER_SIDE = 40;
 const SOUND_ENABLED_STORAGE_KEY = "zap-battle:sound-enabled";
 
 const COPY = {
@@ -125,8 +126,8 @@ export function BattleDisplay({
   const [celebrationSide, setCelebrationSide] = useState<CelebrationTarget>("center");
   const finalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : null;
   const displayItems = finalItems ?? items;
-  const leftFeedItems = displayItems.filter((item) => item.side === "left");
-  const rightFeedItems = displayItems.filter((item) => item.side === "right");
+  const leftFeedItems = displayItems.filter((item) => item.side === "left").slice(0, FEED_ITEMS_PER_SIDE);
+  const rightFeedItems = displayItems.filter((item) => item.side === "right").slice(0, FEED_ITEMS_PER_SIDE);
   const copy = COPY[locale];
   const showDemoControls = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEMO_ZAPS === "true";
 
@@ -243,8 +244,7 @@ export function BattleDisplay({
           byId.set(item.id, mergeZapReceiptItem(byId.get(item.id), item));
         });
         return Array.from(byId.values())
-          .sort((a, b) => b.createdAt - a.createdAt)
-          .slice(0, 40);
+          .sort((a, b) => b.createdAt - a.createdAt);
       });
       enqueueCelebrations(newReceiptSides, soundEnabledRef.current);
       receipts.forEach((item) => {
@@ -404,8 +404,9 @@ export function BattleDisplay({
     const receipts = session.startsAt
       ? await fetchZapReceiptsOnce({ session, since: session.startsAt, maxWait: 3500 })
       : [];
+    const finalReceipts = mergeZapReceiptItems([...items, ...receipts]);
     await postAdminAction("end", {
-      finalResult: createFinalResult(receipts)
+      finalResult: createFinalResult(finalReceipts)
     });
   }
 
@@ -910,6 +911,14 @@ function createFinalResult(receipts: ZapReceiptItem[]) {
     right,
     receipts: normalized.slice(0, 80)
   };
+}
+
+function mergeZapReceiptItems(receipts: ZapReceiptItem[]): ZapReceiptItem[] {
+  const byId = new Map<string, ZapReceiptItem>();
+  receipts.forEach((item) => {
+    byId.set(item.id, mergeZapReceiptItem(byId.get(item.id), item));
+  });
+  return Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 function mergeZapReceiptItem(existing: ZapReceiptItem | undefined, incoming: ZapReceiptItem): ZapReceiptItem {
