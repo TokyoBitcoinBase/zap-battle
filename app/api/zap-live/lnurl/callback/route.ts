@@ -17,6 +17,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ status: "ERROR", reason: "Invalid amount." }, { status: 400 });
     }
     const session = await ensureSession(payload.sessionId);
+    if (payload.startsAt && payload.startsAt !== session.startsAt) {
+      return NextResponse.json({ status: "ERROR", reason: "This QR code is for a previous battle." }, { status: 409 });
+    }
     const contestant = session.contestants[payload.side];
     const lightningAddress = payload.lightningAddress || contestant.lightningAddress;
     const recipientPubkey = payload.recipientPubkey || contestant.nostrPubkey;
@@ -49,6 +52,7 @@ export async function GET(request: NextRequest) {
         ["p", recipientPubkey],
         ["zap_live", payload.sessionId],
         ["zap_live_side", payload.side],
+        ...(payload.startsAt ? [["zap_live_starts_at", String(payload.startsAt)]] : []),
         ["client", "zap-battle"]
       ]
     }, servicePrivateKey);

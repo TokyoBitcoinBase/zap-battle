@@ -150,7 +150,6 @@ select {
   font-size: 13px;
   font-weight: 1000;
   margin: 0;
-  text-transform: uppercase;
 }
 
 .timer-badge {
@@ -197,7 +196,7 @@ select {
 .top-actions {
   align-items: center;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
   min-width: 0;
@@ -257,18 +256,24 @@ select {
 }
 
 .demo-actions {
-  display: inline-flex;
-  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  flex: 0 0 100%;
   justify-content: flex-end;
+  margin-top: 0;
   min-width: 0;
 }
 
 .demo-actions .button {
-  max-width: min(100%, 220px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 1 190px;
+  line-height: 1.2;
+  min-height: 34px;
+  min-width: min(100%, 170px);
+  overflow-wrap: anywhere;
+  padding-block: 6px;
+  text-transform: none;
+  white-space: normal;
 }
 
 .status {
@@ -347,6 +352,21 @@ select {
   gap: 16px;
   justify-content: space-between;
   padding: 18px;
+}
+
+.auth-panel {
+  align-items: flex-end;
+}
+
+.auth-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 320px) auto;
+}
+
+.auth-form .field {
+  margin-bottom: 0;
 }
 
 .title h1 {
@@ -714,7 +734,6 @@ select {
   min-width: 0;
   overflow: hidden;
   overflow-wrap: anywhere;
-  text-transform: uppercase;
 }
 
 .score-mini {
@@ -887,7 +906,6 @@ select {
   margin: 0 0 8px;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -1009,7 +1027,6 @@ select {
   display: block;
   font-size: clamp(30px, 5vw, 66px);
   line-height: 1;
-  text-transform: uppercase;
 }
 
 .final-hero p {
@@ -1054,7 +1071,6 @@ select {
 .final-card h3 {
   font-size: clamp(20px, 3vw, 34px);
   margin: 10px 0 18px;
-  text-transform: uppercase;
 }
 
 .final-card strong {
@@ -1286,5 +1302,14 @@ select {
 
   .admin-grid {
     grid-template-columns: 1fr;
+  }
+
+  .auth-panel {
+    align-items: stretch;
+  }
+
+  .auth-form {
+    grid-template-columns: 1fr;
+    width: 100%;
   }
 }

@@ -511,6 +511,15 @@ export function BattleDisplay({
                 }}>
                   {copy.sound} {soundEnabled ? "On" : "Off"}
                 </button>
+                <a
+                  className="button"
+                  href={`/zap-battle/${encodeURIComponent(session.id)}/display`}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  onClick={() => setUtilityOpen(false)}
+                >
+                  Display tab
+                </a>
                 {adminEnabled ? (
                   <button className="button" type="button" onClick={() => {
                     setUtilityOpen(false);
@@ -579,12 +588,14 @@ export function BattleDisplay({
           <section className="arena" aria-label="Zap Battle scoreboard">
             <ContestantStage
               sessionId={session.id}
+              sessionStartsAt={session.startsAt}
               contestant={session.contestants.left}
               copy={copy}
               stats={leftStats}
             />
             <ContestantStage
               sessionId={session.id}
+              sessionStartsAt={session.startsAt}
               contestant={session.contestants.right}
               copy={copy}
               stats={rightStats}
@@ -739,11 +750,13 @@ function FinalSideCard({
 
 function ContestantStage({
   sessionId,
+  sessionStartsAt,
   contestant,
   copy,
   stats
 }: {
   sessionId: string;
+  sessionStartsAt: number | null;
   contestant: Contestant;
   copy: typeof COPY[Locale];
   stats: ReturnType<typeof calculateStats>;
@@ -761,7 +774,7 @@ function ContestantStage({
     async function createQr() {
       try {
         setQrStatus("");
-        const payload = await qrPayloadForContestant(sessionId, qrContestant);
+        const payload = await qrPayloadForContestant(sessionId, sessionStartsAt, qrContestant);
         const dataUrl = await QRCode.toDataURL(payload, {
           errorCorrectionLevel: "L",
           margin: 2,
@@ -783,7 +796,7 @@ function ContestantStage({
     return () => {
       cancelled = true;
     };
-  }, [copy.qrNotReady, qrContestant, sessionId]);
+  }, [copy.qrNotReady, qrContestant, sessionId, sessionStartsAt]);
 
   return (
     <article className={`side ${contestant.side}`}>
@@ -829,14 +842,15 @@ function BattleTimer({ session, copy }: { session: ZapBattleSession; copy: typeo
   );
 }
 
-async function qrPayloadForContestant(sessionId: string, contestant: Contestant): Promise<string> {
+async function qrPayloadForContestant(sessionId: string, sessionStartsAt: number | null, contestant: Contestant): Promise<string> {
   if (!contestant.lightningAddress.trim()) return `lightning:${displayContestantName(contestant)}`;
   const response = await fetch("/api/zap-live/token", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       sessionId,
-      side: contestant.side
+      side: contestant.side,
+      startsAt: sessionStartsAt ?? undefined
     })
   });
   const json = await response.json().catch(() => ({})) as { lnurlPayUrl?: string; reason?: string; error?: string };
@@ -944,7 +958,12 @@ function adminHeaders(adminToken: string): HeadersInit {
 }
 
 function currentAdminToken(sessionId: string): string {
-  return sessionStorage.getItem(adminTokenStorageKey(sessionId)) ?? sessionStorage.getItem(globalAdminTokenStorageKey()) ?? "";
+  const keys = [adminTokenStorageKey(sessionId), globalAdminTokenStorageKey()];
+  for (const key of keys) {
+    const value = sessionStorage.getItem(key) ?? localStorage.getItem(key);
+    if (value) return value;
+  }
+  return "";
 }
 
 function adminTokenStorageKey(sessionId: string): string {

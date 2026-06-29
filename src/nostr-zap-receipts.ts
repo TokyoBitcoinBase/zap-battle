@@ -115,6 +115,8 @@ function parseZapReceipt(receipt: NostrEvent, session: ZapBattleSession): Parsed
   if (zapRequest.kind !== 9734 || !verifyEvent(zapRequest)) return null;
   const sessionTag = getTag(zapRequest, "zap_live");
   if (sessionTag && sessionTag !== session.id) return null;
+  const startsAtTag = Number(getTag(zapRequest, "zap_live_starts_at") || 0);
+  if (startsAtTag && session.startsAt && startsAtTag !== session.startsAt) return null;
 
   const recipientPubkey = getTag(zapRequest, "p") || getTag(receipt, "p");
   if (!recipientPubkey) return null;

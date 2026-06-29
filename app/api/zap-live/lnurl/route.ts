@@ -8,6 +8,9 @@ export async function GET(request: NextRequest) {
   try {
     const payload = verifyZapLiveToken(token);
     const session = await ensureSession(payload.sessionId);
+    if (payload.startsAt && payload.startsAt !== session.startsAt) {
+      return NextResponse.json({ status: "ERROR", reason: "This QR code is for a previous battle." }, { status: 409 });
+    }
     const contestant = session.contestants[payload.side];
     const lightningAddress = payload.lightningAddress || contestant.lightningAddress;
     const displayName = payload.displayName || contestant.displayName || (payload.side === "left" ? "PLAYER 1" : "PLAYER 2");
@@ -20,7 +23,7 @@ export async function GET(request: NextRequest) {
       maxSendable: targetMetadata.maxSendable,
       metadata: JSON.stringify([
         ["text/plain", `Zap Battle: ${displayName}`],
-        ["text/identifier", `zap-battle:${payload.sessionId}:${payload.side}`]
+        ["text/identifier", `zap-battle:${payload.sessionId}:${payload.side}${payload.startsAt ? `:${payload.startsAt}` : ""}`]
       ]),
       commentAllowed: Math.min(targetMetadata.commentAllowed ?? 80, 120),
       allowsNostr: true,

@@ -28,7 +28,7 @@ export function normalizeSession(input: unknown, fallbackId: string): ZapBattleS
       right: normalizeContestant(contestantsValue.right, "right")
     },
     createdAt: readNullableNumber(value.createdAt) ?? now,
-    updatedAt: now
+    updatedAt: readNullableNumber(value.updatedAt) ?? now
   };
 }
 

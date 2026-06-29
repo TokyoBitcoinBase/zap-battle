@@ -16,7 +16,7 @@ export function BattleLauncher() {
   const operatorPath = `${displayPath}?admin=1`;
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(globalAdminTokenStorageKey()) ?? "";
+    const stored = readStoredAdminToken();
     setAdminToken(stored);
     if (stored) void verifyToken(stored);
   }, []);
@@ -30,7 +30,7 @@ export function BattleLauncher() {
         headers: adminHeaders(token)
       });
       if (!response.ok) throw new Error("Admin token is invalid.");
-      sessionStorage.setItem(globalAdminTokenStorageKey(), token.trim());
+      writeStoredAdminToken(token.trim());
       setVerified(true);
       setStatus("Admin token verified.");
     } catch (error) {
@@ -42,8 +42,7 @@ export function BattleLauncher() {
   }
 
   function rememberSessionToken() {
-    sessionStorage.setItem(globalAdminTokenStorageKey(), adminToken.trim());
-    sessionStorage.setItem(adminTokenStorageKey(normalizedId), adminToken.trim());
+    writeStoredAdminToken(adminToken.trim(), normalizedId);
   }
 
   function openOperatorDisplay() {
@@ -131,6 +130,29 @@ function adminHeaders(adminToken: string): HeadersInit {
     "content-type": "application/json",
     ...(adminToken.trim() ? { "x-admin-token": adminToken.trim() } : {})
   };
+}
+
+function readStoredAdminToken(sessionId?: string): string {
+  const keys = [
+    ...(sessionId ? [adminTokenStorageKey(sessionId)] : []),
+    globalAdminTokenStorageKey()
+  ];
+  for (const key of keys) {
+    const value = sessionStorage.getItem(key) ?? localStorage.getItem(key);
+    if (value) return value;
+  }
+  return "";
+}
+
+function writeStoredAdminToken(adminToken: string, sessionId?: string): void {
+  const keys = [
+    ...(sessionId ? [adminTokenStorageKey(sessionId)] : []),
+    globalAdminTokenStorageKey()
+  ];
+  keys.forEach((key) => {
+    sessionStorage.setItem(key, adminToken);
+    localStorage.setItem(key, adminToken);
+  });
 }
 
 function globalAdminTokenStorageKey(): string {

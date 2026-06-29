@@ -63,20 +63,55 @@ async function getNostrSession(sessionId: string): Promise<ZapBattleSession | nu
   const pubkey = getPublicKey(privateKey);
   const pool = new SimplePool();
   try {
-    const event = await pool.get(readSessionRelays(), {
+    const events = await pool.querySync(readSessionRelays(), {
       kinds: [SESSION_KIND],
       authors: [pubkey],
       "#d": [sessionDTag(sessionId)]
     }, { maxWait: 1200 });
-    if (!event || !verifyEvent(event)) return null;
-    const parsed = JSON.parse(event.content) as unknown;
-    if (isDeletedSession(parsed, sessionId)) return null;
-    return normalizeSession(parsed, sessionId);
+    return latestSessionFromEvents(events as NostrSessionEvent[], sessionId);
   } catch {
     return null;
   } finally {
     pool.close(readSessionRelays());
   }
+}
+
+type NostrSessionEvent = {
+  id: string;
+  created_at: number;
+  content: string;
+  kind: number;
+  tags: string[][];
+  pubkey: string;
+  sig: string;
+};
+
+function latestSessionFromEvents(events: NostrSessionEvent[], sessionId: string): ZapBattleSession | null {
+  const candidates = events
+    .filter((event) => event.kind === SESSION_KIND && verifyEvent(event))
+    .map((event) => {
+      try {
+        const parsed = JSON.parse(event.content) as unknown;
+        return { event, parsed };
+      } catch {
+        return null;
+      }
+    })
+    .filter((candidate): candidate is { event: NostrSessionEvent; parsed: unknown } => Boolean(candidate))
+    .sort((left, right) => sessionSortTime(right) - sessionSortTime(left));
+
+  const latest = candidates[0];
+  if (!latest || isDeletedSession(latest.parsed, sessionId)) return null;
+  return normalizeSession(latest.parsed, sessionId);
+}
+
+function sessionSortTime(candidate: { event: NostrSessionEvent; parsed: unknown }): number {
+  const parsed = candidate.parsed;
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const updatedAt = (parsed as { updatedAt?: unknown }).updatedAt;
+    if (typeof updatedAt === "number" && Number.isFinite(updatedAt)) return updatedAt;
+  }
+  return candidate.event.created_at;
 }
 
 async function publishNostrSessionDeletion(sessionId: string): Promise<void> {
@@ -100,7 +135,7 @@ async function publishNostrSessionDeletion(sessionId: string): Promise<void> {
   const pool = new SimplePool();
   try {
     await Promise.race([
-      Promise.any(pool.publish(readSessionRelays(), event, { maxWait: 1600 })),
+      Promise.allSettled(pool.publish(readSessionRelays(), event, { maxWait: 2000 })),
       timeout(1600)
     ]);
   } finally {
@@ -126,8 +161,8 @@ async function publishNostrSession(session: ZapBattleSession): Promise<void> {
   const pool = new SimplePool();
   try {
     await Promise.race([
-      Promise.any(pool.publish(readSessionRelays(), event, { maxWait: 1600 })),
-      timeout(1600)
+      Promise.allSettled(pool.publish(readSessionRelays(), event, { maxWait: 2200 })),
+      timeout(2200)
     ]);
   } finally {
     pool.close(readSessionRelays());

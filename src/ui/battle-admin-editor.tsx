@@ -115,6 +115,7 @@ export function BattleAdminEditor({
   const [status, setStatus] = useState("");
   const [iframeCopied, setIframeCopied] = useState(false);
   const [adminToken, setAdminToken] = useState("");
+  const [adminTokenLoaded, setAdminTokenLoaded] = useState(false);
   const [createMissingTemporaryProfiles, setCreateMissingTemporaryProfiles] = useState(true);
   const displayUrl = `/zap-battle/${encodeURIComponent(sessionId)}/display`;
   const absoluteDisplayUrl = useAbsoluteUrl(displayUrl);
@@ -123,8 +124,10 @@ export function BattleAdminEditor({
   const shouldCreateMissingTemporaryProfiles = createMissingTemporaryProfiles && missingTemporaryProfileSides.length > 0;
 
   useEffect(() => {
-    const storedToken = sessionStorage.getItem(adminTokenStorageKey(sessionId)) ?? sessionStorage.getItem(globalAdminTokenStorageKey()) ?? "";
+    setAdminTokenLoaded(false);
+    const storedToken = readStoredAdminToken(sessionId);
     setAdminToken(storedToken);
+    setAdminTokenLoaded(true);
     let cancelled = false;
     async function loadSession() {
       try {
@@ -152,9 +155,9 @@ export function BattleAdminEditor({
   }, [copy.loadingFailed, sessionId]);
 
   useEffect(() => {
-    sessionStorage.setItem(adminTokenStorageKey(sessionId), adminToken);
-    sessionStorage.setItem(globalAdminTokenStorageKey(), adminToken);
-  }, [adminToken, sessionId]);
+    if (!adminTokenLoaded) return;
+    writeStoredAdminToken(adminToken, sessionId);
+  }, [adminToken, adminTokenLoaded, sessionId]);
 
   async function saveSession(
     nextSession = session,
@@ -452,11 +455,9 @@ export function BattleAdminEditor({
         <button className="button gold" type="button" onClick={() => void clearResults()} disabled={saving}>
           Clear results
         </button>
-        {!compact ? (
-          <Link className="button" href={displayUrl}>
-            Open display
-          </Link>
-        ) : null}
+        <Link className="button" href={displayUrl} rel="noopener noreferrer" target="_blank">
+          Open display tab
+        </Link>
         <button className="button" type="button" onClick={() => void copyIframe()}>
           {iframeCopied ? "Copied" : "Copy iframe"}
         </button>
@@ -628,6 +629,29 @@ function adminHeaders(adminToken: string): HeadersInit {
     "content-type": "application/json",
     ...(adminToken.trim() ? { "x-admin-token": adminToken.trim() } : {})
   };
+}
+
+function readStoredAdminToken(sessionId?: string): string {
+  const keys = [
+    ...(sessionId ? [adminTokenStorageKey(sessionId)] : []),
+    globalAdminTokenStorageKey()
+  ];
+  for (const key of keys) {
+    const value = sessionStorage.getItem(key) ?? localStorage.getItem(key);
+    if (value) return value;
+  }
+  return "";
+}
+
+function writeStoredAdminToken(adminToken: string, sessionId?: string): void {
+  const keys = [
+    ...(sessionId ? [adminTokenStorageKey(sessionId)] : []),
+    globalAdminTokenStorageKey()
+  ];
+  keys.forEach((key) => {
+    sessionStorage.setItem(key, adminToken);
+    localStorage.setItem(key, adminToken);
+  });
 }
 
 function adminTokenStorageKey(sessionId: string): string {

@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
   const token = signZapLiveToken({
     sessionId,
     side,
+    startsAt: session.startsAt ?? undefined,
     expiresAt
   });
   const baseUrl = siteUrlFromRequest(request);

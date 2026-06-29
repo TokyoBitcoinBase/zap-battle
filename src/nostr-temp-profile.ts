@@ -97,7 +97,7 @@ function readRelays(): string[] {
 }
 
 function normalizeProfileName(displayName: string): string {
-  const normalized = displayName.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  const normalized = displayName.trim().replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
   return normalized || "zap_battle_guest";
 }
 

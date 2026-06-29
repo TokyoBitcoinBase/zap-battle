@@ -8,6 +8,7 @@ export type ZapLiveTokenPayload = {
   lightningAddress?: string | undefined;
   displayName?: string | undefined;
   relays?: string[] | undefined;
+  startsAt?: number | undefined;
   expiresAt: number;
 };
 
@@ -18,6 +19,7 @@ type CompactZapLiveTokenPayload = {
   a?: string | undefined;
   n?: string | undefined;
   r?: string[] | undefined;
+  t?: number | undefined;
   e: number;
 };
 
@@ -49,6 +51,7 @@ function compactPayload(payload: ZapLiveTokenPayload): CompactZapLiveTokenPayloa
   if (payload.lightningAddress) compact.a = payload.lightningAddress;
   if (payload.displayName) compact.n = payload.displayName;
   if (payload.relays) compact.r = payload.relays;
+  if (payload.startsAt) compact.t = payload.startsAt;
   return compact;
 }
 
@@ -61,6 +64,7 @@ function expandPayload(payload: Partial<ZapLiveTokenPayload> | CompactZapLiveTok
       lightningAddress: payload.a,
       displayName: payload.n,
       relays: payload.r,
+      startsAt: payload.t,
       expiresAt: payload.e
     };
   }

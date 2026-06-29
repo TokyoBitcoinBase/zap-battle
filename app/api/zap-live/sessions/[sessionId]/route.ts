@@ -14,13 +14,13 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     const unauthorized = requireAdmin(_request);
     if (unauthorized) return unauthorized;
     const session = await ensureSession(sessionId);
-    return NextResponse.json({ session });
+    return noStoreJson({ session });
   }
   const session = await getSession(sessionId);
   if (!session) {
-    return NextResponse.json({ error: "not_configured" }, { status: 404 });
+    return noStoreJson({ error: "not_configured" }, { status: 404 });
   }
-  return NextResponse.json({ session });
+  return noStoreJson({ session });
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {
@@ -31,7 +31,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   const existing = await ensureSession(sessionId);
   const session = normalizeSession({ ...existing, ...body, id: sessionId }, sessionId);
   await saveSession(session);
-  return NextResponse.json({ session });
+  return noStoreJson({ session });
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
@@ -39,5 +39,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   if (unauthorized) return unauthorized;
   const { sessionId } = await context.params;
   await deleteSession(sessionId);
-  return NextResponse.json({ deleted: true });
+  return noStoreJson({ deleted: true });
+}
+
+function noStoreJson(body: unknown, init?: ResponseInit): NextResponse {
+  const response = NextResponse.json(body, init);
+  response.headers.set("cache-control", "no-store, no-cache, must-revalidate");
+  return response;
 }
