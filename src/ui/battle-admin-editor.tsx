@@ -2,11 +2,25 @@
 
 import Link from "next/link";
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { verifyEvent } from "nostr-tools/pure";
+import { SimplePool } from "nostr-tools/pool";
 import { cleanupTemporaryProfile, createTemporaryProfile } from "@/src/nostr-temp-profile";
+import { normalizeNostrPubkey } from "@/src/nostr-pubkey";
+import { relaysFromEnv } from "@/src/relays";
 import type { BattleSide, Contestant, ZapBattleSession } from "@/src/types";
 
 type SessionResponse = {
   session: ZapBattleSession;
+};
+
+type NostrEvent = {
+  id: string;
+  pubkey: string;
+  created_at: number;
+  kind: number;
+  tags: string[][];
+  content: string;
+  sig: string;
 };
 
 type AdminLocale = "en" | "ja";
@@ -42,6 +56,13 @@ const ADMIN_COPY = {
     minutes: "Minutes",
     nostrProfile: "Nostr public key / npub (optional)",
     nostrProfilePlaceholder: "npub1... or hex pubkey",
+    profileLoad: "Load profile",
+    profileLoadFailed: "Could not load Nostr profile.",
+    profileLoadInvalid: "Enter a valid Nostr public key or npub.",
+    profileLoadMissing: "No Nostr profile metadata was found.",
+    profileLoadNoFields: "Nostr profile found, but it did not include a display name or Lightning Address.",
+    profileLoaded: "Nostr profile loaded.",
+    createDisabledExistingNostr: "Clear the Nostr public key before creating a temporary profile.",
     openDisplayTab: "Open display tab",
     productionTokenPlaceholder: "Required in production",
     resetConfirm: "Reset everything? Player info, Lightning Addresses, timer, and results will be cleared.",
@@ -75,9 +96,9 @@ const ADMIN_COPY = {
     working: "Working..."
   },
   ja: {
-    clearResultsConfirm: "集計とコメントをリセットしますか？参加者情報とライトニング・アドレスは残ります。",
+    clearResultsConfirm: "集計とコメントをリセットしますか？参加者情報とライトニングアドレスは残ります。",
     clearResultsSaved: "集計とコメントをリセットしました。参加者情報は残しています。",
-    clearPlayerConfirm: "このプレイヤー欄をクリアしますか？表示名、ライトニング・アドレス、Nostrプロフィール連携が消えます。",
+    clearPlayerConfirm: "このプレイヤー欄をクリアしますか？表示名、ライトニングアドレス、Nostrプロフィール連携が消えます。",
     clearResults: "集計をリセット",
     clear: "クリア",
     copyIframeFailed: "iframeコードをコピーできませんでした。",
@@ -86,10 +107,10 @@ const ADMIN_COPY = {
     create: "作成",
     creatingTemp: "一時Nostrプロフィールを作成しています...",
     createTempFailed: "一時Nostrプロフィールを作成できませんでした。",
-    createTempMissing: "作成には表示名とライトニング・アドレスが必要です。",
+    createTempMissing: "作成には表示名とライトニングアドレスが必要です。",
     createTempSaved: "一時Nostrプロフィールを作成し、セッションへ保存しました。",
     createMissingTemps: "Nostrアカウントがないプレイヤー用に一時Nostrプロフィールを作成する",
-    createMissingTempsNote: "入力済みの表示名とライトニング・アドレスを使います。一時鍵はこのブラウザにのみ保存されます。",
+    createMissingTempsNote: "入力済みの表示名とライトニングアドレスを使います。一時鍵はこのブラウザにのみ保存されます。",
     deleteConfirm: "この表示URLのデータを削除しますか？公開表示は未設定に戻ります。URLのルート自体は残ります。",
     deleteFailed: "URLデータを削除できませんでした。",
     deleteSaved: "表示URLのデータを削除しました。公開表示は未設定になりました。",
@@ -101,12 +122,19 @@ const ADMIN_COPY = {
     loadingFailed: "セッションを読み込めませんでした。",
     loading: "読み込み中",
     minutes: "分",
-    lightningAddress: "ライトニング・アドレス",
+    lightningAddress: "ライトニングアドレス",
     nostrProfile: "Nostr公開鍵 / npub（任意）",
     nostrProfilePlaceholder: "npub1... または hex公開鍵",
+    profileLoad: "プロフィール読込",
+    profileLoadFailed: "Nostrプロフィールを読み込めませんでした。",
+    profileLoadInvalid: "有効なNostr公開鍵またはnpubを入力してください。",
+    profileLoadMissing: "Nostrプロフィール情報が見つかりませんでした。",
+    profileLoadNoFields: "Nostrプロフィールは見つかりましたが、表示名またはライトニングアドレスが含まれていません。",
+    profileLoaded: "Nostrプロフィールを読み込みました。",
+    createDisabledExistingNostr: "一時プロフィールを作成するには、先にNostr公開鍵をクリアしてください。",
     openDisplayTab: "表示タブを開く",
     productionTokenPlaceholder: "本番環境では必須",
-    resetConfirm: "すべてリセットしますか？参加者情報、ライトニング・アドレス、タイマー、集計が消えます。",
+    resetConfirm: "すべてリセットしますか？参加者情報、ライトニングアドレス、タイマー、集計が消えます。",
     resetAll: "全リセット",
     resetting: "リセットしています...",
     resetFailed: "リセットできませんでした。",
@@ -119,7 +147,7 @@ const ADMIN_COPY = {
     saved: "保存しました。表示画面に反映されます。",
     savedWithTempProfiles: "一時Nostrプロフィールを作成して保存しました。表示画面に反映されます。",
     seconds: "秒",
-    setupDescription: "公開可能なニックネームとライトニング・アドレスを入力して、WordPressに貼る表示URLを作ります。",
+    setupDescription: "公開可能なニックネームとライトニングアドレスを入力して、WordPressに貼る表示URLを作ります。",
     setupTitle: "バトル設定",
     statusDraft: "開始待ち",
     statusEnded: "終了",
@@ -181,6 +209,7 @@ export function BattleAdminEditor({
   const [adminToken, setAdminToken] = useState("");
   const [adminTokenLoaded, setAdminTokenLoaded] = useState(false);
   const [createMissingTemporaryProfiles, setCreateMissingTemporaryProfiles] = useState(true);
+  const [profileLoadingSide, setProfileLoadingSide] = useState<BattleSide | null>(null);
   const displayUrl = `/zap-battle/${encodeURIComponent(sessionId)}/display`;
   const absoluteDisplayUrl = useAbsoluteUrl(displayUrl);
   const iframeCode = `<iframe src="${absoluteDisplayUrl}" style="width:100%;min-height:900px;border:0;" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" title="Zap Battle"></iframe>`;
@@ -275,6 +304,43 @@ export function BattleAdminEditor({
       setStatus(error instanceof Error ? error.message : copy.createTempFailed);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function loadNostrProfile(side: BattleSide) {
+    const contestant = session.contestants[side];
+    const pubkey = normalizeNostrPubkey(contestant.nostrPubkey);
+    if (!pubkey) {
+      setStatus(copy.profileLoadInvalid);
+      return;
+    }
+    setProfileLoadingSide(side);
+    setStatus("");
+    try {
+      const profile = await fetchNostrProfile(pubkey);
+      if (!profile) {
+        setStatus(copy.profileLoadMissing);
+        return;
+      }
+      if (!profile.displayName && !profile.lightningAddress && !profile.profileImageUrl) {
+        setStatus(copy.profileLoadNoFields);
+        setContestant(setSession, side, { ...contestant, nostrPubkey: pubkey, temporaryProfile: false });
+        return;
+      }
+      const nextContestant: Contestant = {
+        ...contestant,
+        displayName: profile.displayName || contestant.displayName,
+        lightningAddress: profile.lightningAddress || contestant.lightningAddress,
+        nostrPubkey: pubkey,
+        profileImageUrl: profile.profileImageUrl || contestant.profileImageUrl,
+        temporaryProfile: false
+      };
+      setContestant(setSession, side, nextContestant);
+      setStatus(copy.profileLoaded);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : copy.profileLoadFailed);
+    } finally {
+      setProfileLoadingSide(null);
     }
   }
 
@@ -479,6 +545,8 @@ export function BattleAdminEditor({
           onChange={(contestant) => setContestant(setSession, "left", contestant)}
           onCreateTemporaryProfile={() => void createInstantContestant("left")}
           onCleanupTemporaryProfile={() => void cleanupInstantContestant("left")}
+          onLoadNostrProfile={() => void loadNostrProfile("left")}
+          profileLoading={profileLoadingSide === "left"}
           working={saving}
         />
         <ContestantForm
@@ -487,6 +555,8 @@ export function BattleAdminEditor({
           onChange={(contestant) => setContestant(setSession, "right", contestant)}
           onCreateTemporaryProfile={() => void createInstantContestant("right")}
           onCleanupTemporaryProfile={() => void cleanupInstantContestant("right")}
+          onLoadNostrProfile={() => void loadNostrProfile("right")}
+          profileLoading={profileLoadingSide === "right"}
           working={saving}
         />
       </section>
@@ -553,6 +623,8 @@ function ContestantForm({
   onChange,
   onCreateTemporaryProfile,
   onCleanupTemporaryProfile,
+  onLoadNostrProfile,
+  profileLoading,
   working
 }: {
   copy: typeof ADMIN_COPY[AdminLocale];
@@ -560,8 +632,11 @@ function ContestantForm({
   onChange(contestant: Contestant): void;
   onCreateTemporaryProfile(): void;
   onCleanupTemporaryProfile(): void;
+  onLoadNostrProfile(): void;
+  profileLoading: boolean;
   working: boolean;
 }) {
+  const hasNostrPubkey = Boolean(contestant.nostrPubkey?.trim());
   return (
     <div className={`admin-card contestant-form ${contestant.side}`}>
       <h2>{contestant.side === "left" ? "PLAYER 1" : "PLAYER 2"}</h2>
@@ -583,13 +658,14 @@ function ContestantForm({
         />
       </label>
       <div className="inline-actions">
-        <button className="button gold" type="button" onClick={onCreateTemporaryProfile} disabled={working}>
+        <button className="button gold" type="button" onClick={onCreateTemporaryProfile} disabled={working || hasNostrPubkey}>
           {copy.create}
         </button>
         <button className="button" type="button" onClick={onCleanupTemporaryProfile} disabled={working}>
           {copy.clear}
         </button>
       </div>
+      {hasNostrPubkey && !contestant.temporaryProfile ? <p className="field-note">{copy.createDisabledExistingNostr}</p> : null}
       {contestant.temporaryProfile ? (
         <p className="field-note">{contestant.nostrPubkey?.trim() ? copy.temporaryProfileNote : copy.temporaryProfileMissingPubkey}</p>
       ) : null}
@@ -598,9 +674,17 @@ function ContestantForm({
         <input
           value={contestant.nostrPubkey ?? ""}
           onChange={(event) => onChange({ ...contestant, nostrPubkey: event.target.value || undefined })}
+          onBlur={() => {
+            if (normalizeNostrPubkey(contestant.nostrPubkey)) onLoadNostrProfile();
+          }}
           placeholder={copy.nostrProfilePlaceholder}
         />
       </label>
+      <div className="inline-actions">
+        <button className="button" type="button" onClick={onLoadNostrProfile} disabled={working || profileLoading || !contestant.nostrPubkey?.trim()}>
+          {profileLoading ? copy.working : copy.profileLoad}
+        </button>
+      </div>
     </div>
   );
 }
@@ -624,6 +708,55 @@ function adminStatusLabel(status: ZapBattleSession["status"], copy: typeof ADMIN
   if (status === "paused") return copy.statusPaused;
   if (status === "ended") return copy.statusEnded;
   return copy.statusDraft;
+}
+
+type NostrProfile = {
+  displayName?: string;
+  lightningAddress?: string;
+  profileImageUrl?: string;
+};
+
+async function fetchNostrProfile(pubkey: string): Promise<NostrProfile | null> {
+  const pool = new SimplePool();
+  try {
+    const events = await pool.querySync(readProfileRelays(), {
+      kinds: [0],
+      authors: [pubkey],
+      limit: 8
+    }, { maxWait: 2500 });
+    const latest = events
+      .map((event) => event as NostrEvent)
+      .filter((event) => event.kind === 0 && event.pubkey === pubkey && verifyEvent(event))
+      .sort((a, b) => b.created_at - a.created_at)[0];
+    return latest ? profileFromMetadata(latest.content) : null;
+  } finally {
+    pool.close(readProfileRelays());
+  }
+}
+
+function profileFromMetadata(content: string): NostrProfile {
+  let metadata: Record<string, unknown>;
+  try {
+    metadata = JSON.parse(content) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+  const displayName = firstString(metadata.display_name, metadata.name, metadata.username)?.slice(0, 80);
+  const lightningAddress = firstString(metadata.lud16)?.slice(0, 160);
+  const profileImageUrl = firstString(metadata.picture, metadata.image)?.slice(0, 600);
+  return {
+    ...(displayName ? { displayName } : {}),
+    ...(lightningAddress ? { lightningAddress } : {}),
+    ...(profileImageUrl ? { profileImageUrl } : {})
+  };
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  return values.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
+}
+
+function readProfileRelays(): string[] {
+  return relaysFromEnv(process.env.NEXT_PUBLIC_NOSTR_SESSION_RELAYS, process.env.NEXT_PUBLIC_NOSTR_RELAYS);
 }
 
 function updateContestant(session: ZapBattleSession, side: BattleSide, contestant: Contestant): ZapBattleSession {
