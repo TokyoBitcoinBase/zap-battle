@@ -38,6 +38,7 @@ export function validateSessionReady(session: ZapBattleSession): string[] {
     const contestant = session.contestants[side];
     if (!contestant.displayName.trim()) errors.push(`${side} display name is required.`);
     if (!contestant.lightningAddress.trim()) errors.push(`${side} Lightning Address is required.`);
+    if (!contestant.nostrPubkey?.trim()) errors.push(`${side} Nostr profile is required. Create a temporary profile or enter a Nostr profile link.`);
   });
   return errors;
 }

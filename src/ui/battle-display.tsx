@@ -15,11 +15,15 @@ type ConfettiPiece = {
   dy: string;
   r: string;
   color: string;
+  size: string;
 };
 
 type CelebrationTarget = BattleSide | "center";
+type ZapCelebrationTier = "one" | "ten" | "hundred" | "thousand" | "tenThousand";
 type CelebrationQueueItem = {
+  amountSats?: number;
   side: CelebrationTarget;
+  tier: ZapCelebrationTier;
   withSound: boolean;
 };
 
@@ -28,17 +32,83 @@ type Locale = "en" | "ja";
 const CONFETTI_COLORS = ["#ffd238", "#20d4ff", "#ff3e88", "#20f0b0", "#ffffff", "#ff8a1f"];
 const FEED_ITEMS_PER_SIDE = 40;
 const SOUND_ENABLED_STORAGE_KEY = "zap-battle:sound-enabled";
+const DEFAULT_ZAP_CELEBRATION_TIER: ZapCelebrationTier = "hundred";
+const ZAP_CELEBRATION_TIERS = {
+  one: {
+    className: "tier-one",
+    durationMs: 760,
+    confettiCount: 32,
+    spreadMin: 52,
+    spreadMax: 170,
+    lift: 130,
+    fall: 280,
+    text: "ZAP!"
+  },
+  ten: {
+    className: "tier-ten",
+    durationMs: 880,
+    confettiCount: 52,
+    spreadMin: 70,
+    spreadMax: 230,
+    lift: 170,
+    fall: 330,
+    text: "ZAP!"
+  },
+  hundred: {
+    className: "tier-hundred",
+    durationMs: 980,
+    confettiCount: 72,
+    spreadMin: 80,
+    spreadMax: 260,
+    lift: 220,
+    fall: 420,
+    text: "BIG ZAP!"
+  },
+  thousand: {
+    className: "tier-thousand",
+    durationMs: 1240,
+    confettiCount: 112,
+    spreadMin: 120,
+    spreadMax: 380,
+    lift: 290,
+    fall: 520,
+    text: "MEGA ZAP!"
+  },
+  tenThousand: {
+    className: "tier-ten-thousand",
+    durationMs: 1520,
+    confettiCount: 160,
+    spreadMin: 160,
+    spreadMax: 540,
+    lift: 360,
+    fall: 660,
+    text: "LEGEND ZAP!"
+  }
+} satisfies Record<ZapCelebrationTier, {
+  className: string;
+  confettiCount: number;
+  durationMs: number;
+  fall: number;
+  lift: number;
+  spreadMax: number;
+  spreadMin: number;
+  text: string;
+}>;
 
 const COPY = {
   en: {
     admin: "Admin",
     close: "Close",
+    displayTab: "Display tab",
     draw: "Draw",
+    end: "End",
+    endConfirm: "End this battle now? The timer will keep running unless you confirm.",
     finalResult: "Final Result",
     finalScore: "Final Score",
     finalZaps: "Final Zaps",
     noZaps: "No zaps in this battle.",
     paused: "Paused",
+    pause: "Pause",
     qrNotReady: "QR not ready",
     sound: "Sound",
     totalReceived: "Total Received",
@@ -46,6 +116,9 @@ const COPY = {
     winner: "Winner",
     zaps: "zaps",
     lightningMissing: "Lightning Address not set",
+    missingDisplayName: "{side} display name is required.",
+    missingLightningAddress: "{side} Lightning Address is required.",
+    missingNostrProfile: "{side} Nostr profile is required. Use Create or enter a Nostr public key / npub before Start.",
     demoZap: "Demo Received Zap",
     tied: "Tied",
     leads: "leads",
@@ -56,17 +129,33 @@ const COPY = {
     finalizing: "Finalizing",
     overtime: "Overtime",
     ready: "Ready",
+    resumed: "Resumed",
+    resume: "Resume",
+    settings: "Settings",
+    start: "Start",
+    started: "Started",
+    starting: "Starting...",
+    ending: "Ending...",
+    pausing: "Pausing...",
+    resuming: "Resuming...",
+    ended: "Ended",
+    live: "Live",
+    actionFailed: "Action failed",
     timeLeft: "Time Left"
   },
   ja: {
     admin: "管理",
     close: "閉じる",
+    displayTab: "表示タブ",
     draw: "引き分け",
+    end: "終了",
+    endConfirm: "このバトルを終了しますか？確認すると現在の結果で終了します。",
     finalResult: "最終結果",
     finalScore: "最終スコア",
     finalZaps: "最終Zap",
     noZaps: "このバトルのZapはありません。",
     paused: "停止中",
+    pause: "停止",
     qrNotReady: "QR未準備",
     sound: "音",
     totalReceived: "受け取り合計",
@@ -74,6 +163,9 @@ const COPY = {
     winner: "勝者",
     zaps: "zaps",
     lightningMissing: "Lightning Address未設定",
+    missingDisplayName: "{side} の表示名が必要です。",
+    missingLightningAddress: "{side} のライトニング・アドレスが必要です。",
+    missingNostrProfile: "{side} はNostrプロフィールが必要です。開始前に作成を押すか、Nostr公開鍵 / npubを入力してください。",
     demoZap: "デモZap受信",
     tied: "同点",
     leads: "リード",
@@ -84,6 +176,18 @@ const COPY = {
     finalizing: "集計中",
     overtime: "延長",
     ready: "開始待ち",
+    resumed: "再開しました",
+    resume: "再開",
+    settings: "設定",
+    start: "開始",
+    started: "開始しました",
+    starting: "開始しています...",
+    ending: "終了しています...",
+    pausing: "停止しています...",
+    resuming: "再開しています...",
+    ended: "終了しました",
+    live: "ライブ",
+    actionFailed: "操作に失敗しました",
     timeLeft: "残り時間"
   }
 } satisfies Record<Locale, Record<string, string>>;
@@ -124,6 +228,8 @@ export function BattleDisplay({
   const celebrationQueueRef = useRef<CelebrationQueueItem[]>([]);
   const celebrationActiveRef = useRef(false);
   const [celebrationSide, setCelebrationSide] = useState<CelebrationTarget>("center");
+  const [celebrationTier, setCelebrationTier] = useState<ZapCelebrationTier>(DEFAULT_ZAP_CELEBRATION_TIER);
+  const [celebrationAmount, setCelebrationAmount] = useState<number | undefined>(undefined);
   const finalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : null;
   const displayItems = finalItems ?? items;
   const leftFeedItems = displayItems.filter((item) => item.side === "left").slice(0, FEED_ITEMS_PER_SIDE);
@@ -232,11 +338,11 @@ export function BattleDisplay({
     if (session.status === "ended" && session.finalResult) return;
     function addReceipts(receipts: ZapReceiptItem[]) {
       if (receipts.length === 0) return;
-      const newReceiptSides: BattleSide[] = [];
+      const newReceipts: ZapReceiptItem[] = [];
       receipts.forEach((item) => {
         if (seenReceiptIdsRef.current.has(item.id)) return;
         seenReceiptIdsRef.current.add(item.id);
-        newReceiptSides.push(item.side);
+        newReceipts.push(item);
       });
       setItems((current) => {
         const byId = new Map(current.map((item) => [item.id, item]));
@@ -246,7 +352,7 @@ export function BattleDisplay({
         return Array.from(byId.values())
           .sort((a, b) => b.createdAt - a.createdAt);
       });
-      enqueueCelebrations(newReceiptSides, soundEnabledRef.current);
+      enqueueCelebrations(newReceipts, soundEnabledRef.current);
       receipts.forEach((item) => {
         latestReceiptCreatedAtRef.current = Math.max(latestReceiptCreatedAtRef.current, item.createdAt);
       });
@@ -318,7 +424,7 @@ export function BattleDisplay({
   }, [adminEnabled, session.id]);
 
   function addDemoZap(side: BattleSide) {
-    const amount = [500, 1000, 2100, 3000, 5000][Math.floor(Math.random() * 5)] ?? 1000;
+    const amount = [1, 10, 100, 1000, 10000][Math.floor(Math.random() * 5)] ?? 1000;
     const names = ["anonymous", "bboy", "bgirl", "npub...dance", "floor side"];
     const comments = ["🔥", "go!", "nice move", "finish it", "最高"];
     setItems((current) => [
@@ -332,17 +438,27 @@ export function BattleDisplay({
       },
       ...current
     ].slice(0, 20));
-    enqueueCelebration(side, soundEnabledRef.current);
+    enqueueCelebration(side, soundEnabledRef.current, amount);
   }
 
-  function enqueueCelebrations(sides: BattleSide[], withSound: boolean) {
-    if (sides.length === 0) return;
-    celebrationQueueRef.current.push(...sides.map((side) => ({ side, withSound })));
+  function enqueueCelebrations(receipts: ZapReceiptItem[], withSound: boolean) {
+    if (receipts.length === 0) return;
+    celebrationQueueRef.current.push(...receipts.map((item) => ({
+      amountSats: item.amountSats,
+      side: item.side,
+      tier: zapCelebrationTier(item.amountSats),
+      withSound
+    })));
     runNextCelebration();
   }
 
-  function enqueueCelebration(side: CelebrationTarget, withSound: boolean) {
-    celebrationQueueRef.current.push({ side, withSound });
+  function enqueueCelebration(side: CelebrationTarget, withSound: boolean, amountSats?: number) {
+    celebrationQueueRef.current.push({
+      amountSats,
+      side,
+      tier: amountSats ? zapCelebrationTier(amountSats) : DEFAULT_ZAP_CELEBRATION_TIER,
+      withSound
+    });
     runNextCelebration();
   }
 
@@ -352,11 +468,14 @@ export function BattleDisplay({
     if (!next) return;
 
     celebrationActiveRef.current = true;
+    const tier = ZAP_CELEBRATION_TIERS[next.tier];
     setCelebrationNonce((current) => current + 1);
     setCelebrationSide(next.side);
-    setConfetti(createConfetti(next.side));
+    setCelebrationTier(next.tier);
+    setCelebrationAmount(next.amountSats);
+    setConfetti(createConfetti(next.side, next.tier));
     setCelebrating(true);
-    if (next.withSound) void playZapSound();
+    if (next.withSound) void playZapSound(next.tier);
 
     window.clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = window.setTimeout(() => {
@@ -366,7 +485,7 @@ export function BattleDisplay({
       if (celebrationQueueRef.current.length > 0) {
         celebrationTimerRef.current = window.setTimeout(runNextCelebration, 80);
       }
-    }, 980);
+    }, tier.durationMs);
   }
 
   function toggleLocale() {
@@ -395,7 +514,7 @@ export function BattleDisplay({
   }
 
   async function endBattle() {
-    const confirmed = window.confirm("End this battle now? The timer will keep running unless you confirm.");
+    const confirmed = window.confirm(copy.endConfirm);
     if (!confirmed) return;
     await finalizeBattle();
   }
@@ -412,7 +531,7 @@ export function BattleDisplay({
 
   async function postAdminAction(action: "start" | "pause" | "end", body?: unknown) {
     setAdminWorking(true);
-    setAdminActionStatus(action === "start" ? "Starting..." : action === "pause" ? session.status === "paused" ? "Resuming..." : "Pausing..." : "Ending...");
+    setAdminActionStatus(action === "start" ? copy.starting : action === "pause" ? session.status === "paused" ? copy.resuming : copy.pausing : copy.ending);
     try {
       const adminToken = currentAdminToken(session.id);
       const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(session.id)}/${action}`, {
@@ -422,14 +541,14 @@ export function BattleDisplay({
       });
       const json = await response.json() as SessionResponse;
       if (!response.ok) {
-        setAdminActionStatus(action === "start" && json.errors?.length ? "Setup incomplete" : "Action failed");
+        setAdminActionStatus(action === "start" && json.errors?.length ? formatStartErrors(json.errors, copy) : copy.actionFailed);
         return;
       }
       onSessionChange?.(json.session);
-      setAdminActionStatus(action === "start" ? "Started" : action === "pause" ? json.session.status === "live" ? "Resumed" : "Paused" : "Ended");
+      setAdminActionStatus(action === "start" ? copy.started : action === "pause" ? json.session.status === "live" ? copy.resumed : copy.paused : copy.ended);
       window.setTimeout(() => setAdminActionStatus(""), 1600);
     } catch (error) {
-      setAdminActionStatus(error instanceof Error ? error.message : "Admin action failed.");
+      setAdminActionStatus(error instanceof Error ? error.message : copy.actionFailed);
     } finally {
       setAdminWorking(false);
     }
@@ -438,8 +557,15 @@ export function BattleDisplay({
   return (
     <main className="battle-shell">
       {celebrating ? (
-        <div className={`celebration ${celebrationSide}`} aria-hidden="true" key={celebrationNonce}>
-          <div className="burst-text">{celebrationSide === "center" ? "TIME UP!" : "ZAP!"}</div>
+        <div className={`celebration ${celebrationSide} ${ZAP_CELEBRATION_TIERS[celebrationTier].className}`} aria-hidden="true" key={celebrationNonce}>
+          <div className="zap-flash" />
+          <div className="zap-ring ring-one" />
+          {celebrationTier === "thousand" || celebrationTier === "tenThousand" ? <div className="zap-ring ring-two" /> : null}
+          {celebrationTier === "tenThousand" ? <div className="zap-ring ring-three" /> : null}
+          <div className="burst-text">
+            <span>{celebrationSide === "center" ? "TIME UP!" : ZAP_CELEBRATION_TIERS[celebrationTier].text}</span>
+            {celebrationAmount ? <small>{celebrationAmount.toLocaleString()} sats</small> : null}
+          </div>
           {confetti.map((piece) => (
             <span
               className="confetti"
@@ -450,7 +576,8 @@ export function BattleDisplay({
                 "--dx": piece.dx,
                 "--dy": piece.dy,
                 "--r": piece.r,
-                "--color": piece.color
+                "--color": piece.color,
+                "--size": piece.size
               } as React.CSSProperties}
             />
           ))}
@@ -482,20 +609,19 @@ export function BattleDisplay({
           {adminEnabled && hasAdminToken ? (
             <div className="display-admin-actions">
               <button className="button gold" type="button" onClick={() => void startBattle()} disabled={adminWorking || session.status === "live" || session.status === "paused"}>
-                Start
+                {copy.start}
               </button>
               <button className="button gold" type="button" onClick={() => void togglePauseBattle()} disabled={adminWorking || (session.status !== "live" && session.status !== "paused")}>
-                {session.status === "paused" ? "Resume" : "Pause"}
+                {session.status === "paused" ? copy.resume : copy.pause}
               </button>
               <button className="button" type="button" onClick={() => void endBattle()} disabled={adminWorking || session.status === "ended"}>
-                End
+                {copy.end}
               </button>
-              {adminActionStatus ? <span>{adminActionStatus}</span> : null}
             </div>
           ) : null}
           <div className={`utility-menu ${utilityOpen ? "open" : ""}`} onClick={(event) => event.stopPropagation()}>
             <button className="button utility-trigger" type="button" onClick={() => setUtilityOpen((current) => !current)}>
-              Settings
+              {copy.settings}
             </button>
             {utilityOpen ? (
               <div className="utility-menu-panel">
@@ -518,7 +644,7 @@ export function BattleDisplay({
                   target="_blank"
                   onClick={() => setUtilityOpen(false)}
                 >
-                  Display tab
+                  {copy.displayTab}
                 </a>
                 {adminEnabled ? (
                   <button className="button" type="button" onClick={() => {
@@ -533,7 +659,7 @@ export function BattleDisplay({
           </div>
           <div className={`status ${session.status === "live" ? "live" : ""}`}>
             <span className="status-dot" aria-hidden="true" />
-            <strong>{session.status === "live" ? "Live" : session.status === "ended" ? "Ended" : session.status === "paused" ? copy.paused : copy.ready}</strong>
+            <strong>{session.status === "live" ? copy.live : session.status === "ended" ? copy.ended : session.status === "paused" ? copy.paused : copy.ready}</strong>
           </div>
           {showDemoControls ? (
             <div className="demo-actions" aria-label="Demo Zap controls">
@@ -547,6 +673,8 @@ export function BattleDisplay({
           ) : null}
         </div>
       </header>
+
+      {adminEnabled && adminActionStatus ? <p className="display-admin-status">{adminActionStatus}</p> : null}
 
       {adminOpen ? (
         <div className="admin-modal-backdrop" role="dialog" aria-modal="true" aria-label="Zap Battle Admin">
@@ -588,14 +716,12 @@ export function BattleDisplay({
           <section className="arena" aria-label="Zap Battle scoreboard">
             <ContestantStage
               sessionId={session.id}
-              sessionStartsAt={session.startsAt}
               contestant={session.contestants.left}
               copy={copy}
               stats={leftStats}
             />
             <ContestantStage
               sessionId={session.id}
-              sessionStartsAt={session.startsAt}
               contestant={session.contestants.right}
               copy={copy}
               stats={rightStats}
@@ -750,13 +876,11 @@ function FinalSideCard({
 
 function ContestantStage({
   sessionId,
-  sessionStartsAt,
   contestant,
   copy,
   stats
 }: {
   sessionId: string;
-  sessionStartsAt: number | null;
   contestant: Contestant;
   copy: typeof COPY[Locale];
   stats: ReturnType<typeof calculateStats>;
@@ -774,7 +898,7 @@ function ContestantStage({
     async function createQr() {
       try {
         setQrStatus("");
-        const payload = await qrPayloadForContestant(sessionId, sessionStartsAt, qrContestant);
+        const payload = await qrPayloadForContestant(sessionId, qrContestant);
         const dataUrl = await QRCode.toDataURL(payload, {
           errorCorrectionLevel: "L",
           margin: 2,
@@ -787,7 +911,7 @@ function ContestantStage({
         if (!cancelled) setQrDataUrl(dataUrl);
       } catch (error) {
         if (!cancelled) {
-          setQrStatus(error instanceof Error ? error.message : copy.qrNotReady);
+          setQrStatus(error instanceof Error ? error.message : "QR not ready");
           setQrDataUrl("");
         }
       }
@@ -796,7 +920,7 @@ function ContestantStage({
     return () => {
       cancelled = true;
     };
-  }, [copy.qrNotReady, qrContestant, sessionId, sessionStartsAt]);
+  }, [qrContestant, sessionId]);
 
   return (
     <article className={`side ${contestant.side}`}>
@@ -842,15 +966,14 @@ function BattleTimer({ session, copy }: { session: ZapBattleSession; copy: typeo
   );
 }
 
-async function qrPayloadForContestant(sessionId: string, sessionStartsAt: number | null, contestant: Contestant): Promise<string> {
+async function qrPayloadForContestant(sessionId: string, contestant: Contestant): Promise<string> {
   if (!contestant.lightningAddress.trim()) return `lightning:${displayContestantName(contestant)}`;
   const response = await fetch("/api/zap-live/token", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       sessionId,
-      side: contestant.side,
-      startsAt: sessionStartsAt ?? undefined
+      side: contestant.side
     })
   });
   const json = await response.json().catch(() => ({})) as { lnurlPayUrl?: string; reason?: string; error?: string };
@@ -957,6 +1080,23 @@ function adminHeaders(adminToken: string): HeadersInit {
   };
 }
 
+function formatStartErrors(errors: string[], copy: typeof COPY[Locale]): string {
+  return errors.map((error) => {
+    const side = error.startsWith("left ") ? "left" : error.startsWith("right ") ? "right" : "";
+    const sideLabel = side === "left" ? "PLAYER 1" : side === "right" ? "PLAYER 2" : "";
+    if (error.includes("display name is required")) {
+      return copy.missingDisplayName.replace("{side}", sideLabel || "Player");
+    }
+    if (error.includes("Lightning Address is required")) {
+      return copy.missingLightningAddress.replace("{side}", sideLabel || "Player");
+    }
+    if (error.includes("Nostr profile is required")) {
+      return copy.missingNostrProfile.replace("{side}", sideLabel || "Player");
+    }
+    return error;
+  }).join(" / ");
+}
+
 function currentAdminToken(sessionId: string): string {
   const keys = [adminTokenStorageKey(sessionId), globalAdminTokenStorageKey()];
   for (const key of keys) {
@@ -974,49 +1114,103 @@ function globalAdminTokenStorageKey(): string {
   return "zap-battle:admin-token";
 }
 
-function createConfetti(target: CelebrationTarget): ConfettiPiece[] {
+function zapCelebrationTier(amountSats: number): ZapCelebrationTier {
+  if (amountSats >= 10000) return "tenThousand";
+  if (amountSats >= 1000) return "thousand";
+  if (amountSats >= 100) return "hundred";
+  if (amountSats >= 10) return "ten";
+  return "one";
+}
+
+function createConfetti(target: CelebrationTarget, tierName: ZapCelebrationTier): ConfettiPiece[] {
+  const tier = ZAP_CELEBRATION_TIERS[tierName];
   const centerX = target === "left" ? 25 : target === "right" ? 75 : 50;
   const centerY = target === "center" ? 42 : 36;
-  return Array.from({ length: 72 }, (_, index) => {
+  return Array.from({ length: tier.confettiCount }, (_, index) => {
     const side = index % 2 === 0 ? -1 : 1;
-    const spread = 80 + Math.random() * 260;
+    const spread = tier.spreadMin + Math.random() * (tier.spreadMax - tier.spreadMin);
+    const size = tierName === "tenThousand" ? 10 + Math.random() * 12 : tierName === "thousand" ? 8 + Math.random() * 10 : 6 + Math.random() * 8;
     return {
       id: `${Date.now()}-${index}`,
       x: `${centerX - 4 + Math.random() * 8}%`,
       y: `${centerY - 6 + Math.random() * 12}%`,
       dx: `${side * spread}px`,
-      dy: `${-220 + Math.random() * 420}px`,
+      dy: `${-tier.lift + Math.random() * tier.fall}px`,
       r: `${Math.random() * 360}deg`,
-      color: CONFETTI_COLORS[index % CONFETTI_COLORS.length] ?? "#ffd238"
+      color: CONFETTI_COLORS[index % CONFETTI_COLORS.length] ?? "#ffd238",
+      size: `${size}px`
     };
   });
 }
 
-async function playZapSound() {
+async function playZapSound(tierName: ZapCelebrationTier = DEFAULT_ZAP_CELEBRATION_TIER) {
   const context = getAudioContext();
   if (!context) return;
   await resumeAudioContext(context);
   const now = context.currentTime;
   const output = context.createGain();
+  const tierSettings = zapSoundSettings(tierName);
   output.gain.setValueAtTime(0.0001, now);
-  output.gain.exponentialRampToValueAtTime(0.24, now + 0.02);
-  output.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+  output.gain.exponentialRampToValueAtTime(tierSettings.volume, now + 0.02);
+  output.gain.exponentialRampToValueAtTime(0.0001, now + tierSettings.tail);
   output.connect(context.destination);
 
-  [520, 784, 1046].forEach((frequency, index) => {
+  tierSettings.notes.forEach((frequency, index) => {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.type = index === 0 ? "triangle" : "square";
-    oscillator.frequency.setValueAtTime(frequency, now + index * 0.055);
+    const startAt = now + index * tierSettings.spacing;
+    oscillator.type = tierSettings.wave;
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    if (tierName === "thousand" || tierName === "tenThousand") {
+      oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.08, startAt + tierSettings.noteLength * 0.55);
+    }
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.16, now + index * 0.055 + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + index * 0.055 + 0.22);
+    gain.gain.exponentialRampToValueAtTime(tierSettings.noteGain, startAt + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + tierSettings.noteLength);
     oscillator.connect(gain);
     gain.connect(output);
-    oscillator.start(now + index * 0.055);
-    oscillator.stop(now + index * 0.055 + 0.26);
+    oscillator.start(startAt);
+    oscillator.stop(startAt + tierSettings.noteLength + 0.04);
   });
 
+  if (tierName === "tenThousand") {
+    const bass = context.createOscillator();
+    const bassGain = context.createGain();
+    bass.type = "sawtooth";
+    bass.frequency.setValueAtTime(92, now);
+    bass.frequency.exponentialRampToValueAtTime(46, now + 0.42);
+    bassGain.gain.setValueAtTime(0.0001, now);
+    bassGain.gain.exponentialRampToValueAtTime(0.2, now + 0.025);
+    bassGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+    bass.connect(bassGain);
+    bassGain.connect(output);
+    bass.start(now);
+    bass.stop(now + 0.52);
+  }
+}
+
+function zapSoundSettings(tierName: ZapCelebrationTier): {
+  noteGain: number;
+  noteLength: number;
+  notes: number[];
+  spacing: number;
+  tail: number;
+  volume: number;
+  wave: OscillatorType;
+} {
+  if (tierName === "one") {
+    return { noteGain: 0.09, noteLength: 0.12, notes: [660], spacing: 0.05, tail: 0.22, volume: 0.14, wave: "sine" };
+  }
+  if (tierName === "ten") {
+    return { noteGain: 0.12, noteLength: 0.16, notes: [587, 880], spacing: 0.07, tail: 0.34, volume: 0.18, wave: "triangle" };
+  }
+  if (tierName === "hundred") {
+    return { noteGain: 0.16, noteLength: 0.22, notes: [520, 784, 1046], spacing: 0.055, tail: 0.42, volume: 0.24, wave: "square" };
+  }
+  if (tierName === "thousand") {
+    return { noteGain: 0.18, noteLength: 0.28, notes: [392, 588, 784, 1176, 1568], spacing: 0.055, tail: 0.68, volume: 0.28, wave: "sawtooth" };
+  }
+  return { noteGain: 0.2, noteLength: 0.34, notes: [262, 392, 523, 784, 1046, 1568, 2093], spacing: 0.045, tail: 0.92, volume: 0.32, wave: "sawtooth" };
 }
 
 async function playTimeUpSound() {

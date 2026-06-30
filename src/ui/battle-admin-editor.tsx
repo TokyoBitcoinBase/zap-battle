@@ -16,7 +16,12 @@ const ADMIN_COPY = {
     clearResultsConfirm: "Clear results and comments? Player info and Lightning Addresses will remain.",
     clearResultsSaved: "Results and comments were cleared. Player info remains.",
     clearPlayerConfirm: "Clear this player? Display name, Lightning Address, and Nostr profile link will be removed.",
+    clearResults: "Clear results",
+    clear: "Clear",
     copyIframeFailed: "Could not copy iframe code.",
+    copied: "Copied",
+    copyIframe: "Copy iframe",
+    create: "Create",
     creatingTemp: "Creating temporary Nostr profile...",
     createTempFailed: "Could not create temporary Nostr profile.",
     createTempMissing: "Display name and Lightning Address are required for instant creation.",
@@ -26,51 +31,110 @@ const ADMIN_COPY = {
     deleteConfirm: "Delete the data for this display URL? The public display will become not configured. The URL route itself will still exist.",
     deleteFailed: "Could not delete URL data.",
     deleteSaved: "Display URL data deleted. The public display is now not configured.",
+    deleteUrlData: "Delete URL Data",
     deleting: "Deleting URL data...",
+    displayName: "Display name",
+    displayNameNote: "Use only a public nickname or stage name. Do not enter a legal name unless the contestant has approved public display.",
+    iframeTitle: "WordPress iframe",
+    lightningAddress: "Lightning Address",
     loadingFailed: "Could not load session.",
+    loading: "Loading",
+    minutes: "Minutes",
+    nostrProfile: "Nostr public key / npub (optional)",
+    nostrProfilePlaceholder: "npub1... or hex pubkey",
+    openDisplayTab: "Open display tab",
+    productionTokenPlaceholder: "Required in production",
     resetConfirm: "Reset everything? Player info, Lightning Addresses, timer, and results will be cleared.",
+    resetAll: "All Reset",
     resetting: "Resetting...",
     resetFailed: "Could not reset.",
     resetSaved: "Reset complete. Temporary profiles were cleared where possible.",
+    save: "Save",
     saveFailed: "Could not save.",
+    saveNeedsNostr: "Start will require a Nostr profile for {players}. Use Create or enter a Nostr profile link/pubkey before Start.",
     saveWithTempProfiles: "Save + Create Nostr Profiles",
     saving: "Saving...",
     saved: "Saved. The display screen will update.",
     savedWithTempProfiles: "Temporary Nostr profiles created and saved. The display screen will update.",
+    seconds: "Seconds",
+    setupDescription: "Enter public nicknames and Lightning Addresses, then use the display URL in WordPress.",
+    setupTitle: "Battle setup",
+    statusDraft: "Draft",
+    statusEnded: "Ended",
+    statusLive: "Live",
+    statusPaused: "Paused",
+    temporaryProfileNote: "App-created temporary profile. Clear will blank this player and publish blank metadata if this browser still has the key.",
+    temporaryProfileMissingPubkey: "Temporary profile data is incomplete. Use Create again or enter a Nostr public key / npub before Start.",
     tempCleaned: "Temporary Nostr profile was cleared and removed from the session.",
     tempCleanedLocalOnly: "No temporary key was found in this browser, so it was only removed from the session.",
     tempCleaning: "Clearing temporary Nostr profile...",
-    tempCleanFailed: "Could not clear temporary Nostr profile."
+    tempCleanFailed: "Could not clear temporary Nostr profile.",
+    title: "Battle title",
+    time: "Battle time",
+    token: "管理トークン",
+    working: "Working..."
   },
   ja: {
-    clearResultsConfirm: "集計とコメントをリセットしますか？参加者情報とLightning Addressは残ります。",
+    clearResultsConfirm: "集計とコメントをリセットしますか？参加者情報とライトニング・アドレスは残ります。",
     clearResultsSaved: "集計とコメントをリセットしました。参加者情報は残しています。",
-    clearPlayerConfirm: "このプレイヤー欄を空にしますか？表示名、Lightning Address、Nostrプロフィール連携が消えます。",
+    clearPlayerConfirm: "このプレイヤー欄をクリアしますか？表示名、ライトニング・アドレス、Nostrプロフィール連携が消えます。",
+    clearResults: "集計をリセット",
+    clear: "クリア",
     copyIframeFailed: "iframeコードをコピーできませんでした。",
+    copied: "コピーしました",
+    copyIframe: "iframeをコピー",
+    create: "作成",
     creatingTemp: "一時Nostrプロフィールを作成しています...",
     createTempFailed: "一時Nostrプロフィールを作成できませんでした。",
-    createTempMissing: "インスタント作成には表示名とLightning Addressが必要です。",
+    createTempMissing: "作成には表示名とライトニング・アドレスが必要です。",
     createTempSaved: "一時Nostrプロフィールを作成し、セッションへ保存しました。",
     createMissingTemps: "Nostrアカウントがないプレイヤー用に一時Nostrプロフィールを作成する",
-    createMissingTempsNote: "入力済みの表示名とLightning Addressを使います。一時鍵はこのブラウザにのみ保存されます。",
+    createMissingTempsNote: "入力済みの表示名とライトニング・アドレスを使います。一時鍵はこのブラウザにのみ保存されます。",
     deleteConfirm: "この表示URLのデータを削除しますか？公開表示は未設定に戻ります。URLのルート自体は残ります。",
     deleteFailed: "URLデータを削除できませんでした。",
     deleteSaved: "表示URLのデータを削除しました。公開表示は未設定になりました。",
+    deleteUrlData: "URLデータ削除",
     deleting: "URLデータを削除しています...",
+    displayName: "表示名",
+    displayNameNote: "公開可能なニックネームまたはステージネームを使ってください。本人が公開を許可していない本名は入力しないでください。",
+    iframeTitle: "WordPress iframe",
     loadingFailed: "セッションを読み込めませんでした。",
-    resetConfirm: "すべてリセットしますか？参加者情報、Lightning Address、タイマー、集計が消えます。",
+    loading: "読み込み中",
+    minutes: "分",
+    lightningAddress: "ライトニング・アドレス",
+    nostrProfile: "Nostr公開鍵 / npub（任意）",
+    nostrProfilePlaceholder: "npub1... または hex公開鍵",
+    openDisplayTab: "表示タブを開く",
+    productionTokenPlaceholder: "本番環境では必須",
+    resetConfirm: "すべてリセットしますか？参加者情報、ライトニング・アドレス、タイマー、集計が消えます。",
+    resetAll: "全リセット",
     resetting: "リセットしています...",
     resetFailed: "リセットできませんでした。",
     resetSaved: "リセットしました。一時プロフィールは可能な範囲で空にしました。",
+    save: "保存",
     saveFailed: "保存できませんでした。",
+    saveNeedsNostr: "{players} は開始前にNostrプロフィールが必要です。作成を押すか、Nostr公開鍵 / npubを入力してください。",
     saveWithTempProfiles: "保存 + Nostrプロフィール作成",
     saving: "保存しています...",
     saved: "保存しました。表示画面に反映されます。",
     savedWithTempProfiles: "一時Nostrプロフィールを作成して保存しました。表示画面に反映されます。",
+    seconds: "秒",
+    setupDescription: "公開可能なニックネームとライトニング・アドレスを入力して、WordPressに貼る表示URLを作ります。",
+    setupTitle: "バトル設定",
+    statusDraft: "開始待ち",
+    statusEnded: "終了",
+    statusLive: "ライブ",
+    statusPaused: "停止中",
+    temporaryProfileNote: "アプリが作成した一時プロフィールです。クリアするとこのプレイヤー欄を空にし、このブラウザに鍵がある場合は空のプロフィール情報を公開します。",
+    temporaryProfileMissingPubkey: "一時プロフィール情報が不完全です。開始前にもう一度作成を押すか、Nostr公開鍵 / npubを入力してください。",
     tempCleaned: "一時Nostrプロフィールを空にし、セッションから外しました。",
     tempCleanedLocalOnly: "このブラウザに一時鍵がないため、セッションからのみ外しました。",
     tempCleaning: "一時Nostrプロフィールを空にしています...",
-    tempCleanFailed: "一時Nostrプロフィールを空にできませんでした。"
+    tempCleanFailed: "一時Nostrプロフィールを空にできませんでした。",
+    title: "バトル名",
+    time: "バトル時間",
+    token: "Admin token",
+    working: "処理中..."
   }
 } satisfies Record<AdminLocale, Record<string, string>>;
 
@@ -136,14 +200,14 @@ export function BattleAdminEditor({
           cache: "no-store",
           headers: adminHeaders(storedToken)
         });
-        if (!response.ok) throw new Error(copy.loadingFailed);
+        if (!response.ok) throw new Error("Could not load battle data.");
         const json = await response.json() as SessionResponse;
         if (!cancelled) {
           setSession(json.session);
           setDurationDraft(durationInputParts(json.session.durationSeconds));
         }
       } catch (error) {
-        if (!cancelled) setStatus(error instanceof Error ? error.message : copy.loadingFailed);
+        if (!cancelled) setStatus(error instanceof Error ? error.message : "Could not load battle data.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -152,7 +216,7 @@ export function BattleAdminEditor({
     return () => {
       cancelled = true;
     };
-  }, [copy.loadingFailed, sessionId]);
+  }, [sessionId]);
 
   useEffect(() => {
     if (!adminTokenLoaded) return;
@@ -181,7 +245,7 @@ export function BattleAdminEditor({
       if (!response.ok) throw new Error(json.errors?.join(" / ") || copy.saveFailed);
       setSession(json.session);
       onSessionChange?.(json.session);
-      setStatus(successMessage);
+      setStatus(saveStatusMessage(json.session, successMessage, copy));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : copy.saveFailed);
     } finally {
@@ -346,12 +410,12 @@ export function BattleAdminEditor({
         <section className="admin-head">
           <div>
           <p className="eyebrow">Zap Battle Admin</p>
-          <h1>Battle setup</h1>
-          <p>公開可能なニックネームとLightning Addressを入力して、WordPressに貼る表示URLを作ります。</p>
+          <h1>{copy.setupTitle}</h1>
+          <p>{copy.setupDescription}</p>
           </div>
           <div className={`status ${session.status === "live" ? "live" : ""}`}>
             <span className="status-dot" aria-hidden="true" />
-            <strong>{loading ? "Loading" : session.status}</strong>
+            <strong>{loading ? copy.loading : adminStatusLabel(session.status, copy)}</strong>
           </div>
         </section>
       ) : null}
@@ -359,16 +423,16 @@ export function BattleAdminEditor({
       <section className="admin-grid">
         <div className="admin-card">
           <label className="field">
-            <span>Admin token</span>
+            <span>{copy.token}</span>
             <input
               value={adminToken}
               onChange={(event) => setAdminToken(event.target.value)}
-              placeholder="Required in production"
+              placeholder={copy.productionTokenPlaceholder}
               type="password"
             />
           </label>
           <label className="field">
-            <span>Battle title</span>
+            <span>{copy.title}</span>
             <input
               value={session.title}
               onChange={(event) => setSession((current) => ({ ...current, title: event.target.value }))}
@@ -376,10 +440,10 @@ export function BattleAdminEditor({
             />
           </label>
           <label className="field">
-            <span>Battle time</span>
+            <span>{copy.time}</span>
             <div className="time-grid">
               <label>
-                <small>Minutes</small>
+                <small>{copy.minutes}</small>
                 <input
                   inputMode="numeric"
                   min={0}
@@ -392,7 +456,7 @@ export function BattleAdminEditor({
                 />
               </label>
               <label>
-                <small>Seconds</small>
+                <small>{copy.seconds}</small>
                 <input
                   inputMode="numeric"
                   max={59}
@@ -410,6 +474,7 @@ export function BattleAdminEditor({
         </div>
 
         <ContestantForm
+          copy={copy}
           contestant={session.contestants.left}
           onChange={(contestant) => setContestant(setSession, "left", contestant)}
           onCreateTemporaryProfile={() => void createInstantContestant("left")}
@@ -417,6 +482,7 @@ export function BattleAdminEditor({
           working={saving}
         />
         <ContestantForm
+          copy={copy}
           contestant={session.contestants.right}
           onChange={(contestant) => setContestant(setSession, "right", contestant)}
           onCreateTemporaryProfile={() => void createInstantContestant("right")}
@@ -450,23 +516,23 @@ export function BattleAdminEditor({
           )}
           disabled={saving}
         >
-          {saving ? "Working..." : shouldCreateMissingTemporaryProfiles ? copy.saveWithTempProfiles : "Save"}
+          {saving ? copy.working : shouldCreateMissingTemporaryProfiles ? copy.saveWithTempProfiles : copy.save}
         </button>
         <button className="button gold" type="button" onClick={() => void clearResults()} disabled={saving}>
-          Clear results
+          {copy.clearResults}
         </button>
         <Link className="button" href={displayUrl} rel="noopener noreferrer" target="_blank">
-          Open display tab
+          {copy.openDisplayTab}
         </Link>
         <button className="button" type="button" onClick={() => void copyIframe()}>
-          {iframeCopied ? "Copied" : "Copy iframe"}
+          {iframeCopied ? copy.copied : copy.copyIframe}
         </button>
         <div className="admin-danger-actions">
           <button className="button danger" type="button" onClick={() => void resetBattle()} disabled={saving}>
-            All Reset
+            {copy.resetAll}
           </button>
           <button className="button danger" type="button" onClick={() => void deleteBattleSession()} disabled={saving}>
-            Delete URL Data
+            {copy.deleteUrlData}
           </button>
         </div>
       </section>
@@ -474,7 +540,7 @@ export function BattleAdminEditor({
       {status ? <p className="admin-status">{status}</p> : null}
 
       <section className="admin-card">
-        <h2>WordPress iframe</h2>
+        <h2>{copy.iframeTitle}</h2>
         <textarea className="iframe-code" readOnly value={iframeCode} />
       </section>
     </main>
@@ -482,12 +548,14 @@ export function BattleAdminEditor({
 }
 
 function ContestantForm({
+  copy,
   contestant,
   onChange,
   onCreateTemporaryProfile,
   onCleanupTemporaryProfile,
   working
 }: {
+  copy: typeof ADMIN_COPY[AdminLocale];
   contestant: Contestant;
   onChange(contestant: Contestant): void;
   onCreateTemporaryProfile(): void;
@@ -498,16 +566,16 @@ function ContestantForm({
     <div className={`admin-card contestant-form ${contestant.side}`}>
       <h2>{contestant.side === "left" ? "PLAYER 1" : "PLAYER 2"}</h2>
       <label className="field">
-        <span>Display name</span>
+        <span>{copy.displayName}</span>
         <input
           value={contestant.displayName}
           onChange={(event) => onChange({ ...contestant, displayName: event.target.value })}
           placeholder={contestant.side === "left" ? "Player 1" : "Player 2"}
         />
       </label>
-      <p className="field-note">Use only a public nickname or stage name. Do not enter a legal name unless the contestant has approved public display.</p>
+      <p className="field-note">{copy.displayNameNote}</p>
       <label className="field">
-        <span>Lightning Address</span>
+        <span>{copy.lightningAddress}</span>
         <input
           value={contestant.lightningAddress}
           onChange={(event) => onChange({ ...contestant, lightningAddress: event.target.value })}
@@ -516,23 +584,46 @@ function ContestantForm({
       </label>
       <div className="inline-actions">
         <button className="button gold" type="button" onClick={onCreateTemporaryProfile} disabled={working}>
-          Create
+          {copy.create}
         </button>
         <button className="button" type="button" onClick={onCleanupTemporaryProfile} disabled={working}>
-          Clear
+          {copy.clear}
         </button>
       </div>
-      {contestant.temporaryProfile ? <p className="field-note">App-created temporary profile. Clear will blank this player and publish blank metadata if this browser still has the key.</p> : null}
+      {contestant.temporaryProfile ? (
+        <p className="field-note">{contestant.nostrPubkey?.trim() ? copy.temporaryProfileNote : copy.temporaryProfileMissingPubkey}</p>
+      ) : null}
       <label className="field">
-        <span>Nostr public key / npub optional</span>
+        <span>{copy.nostrProfile}</span>
         <input
           value={contestant.nostrPubkey ?? ""}
           onChange={(event) => onChange({ ...contestant, nostrPubkey: event.target.value || undefined })}
-          placeholder="npub1... or hex pubkey"
+          placeholder={copy.nostrProfilePlaceholder}
         />
       </label>
     </div>
   );
+}
+
+function saveStatusMessage(session: ZapBattleSession, successMessage: string, copy: typeof ADMIN_COPY[AdminLocale]): string {
+  const missingSides = missingNostrProfileSides(session);
+  if (missingSides.length === 0) return successMessage;
+  const players = missingSides.map((side) => side === "left" ? "PLAYER 1" : "PLAYER 2").join(", ");
+  return `${successMessage} ${copy.saveNeedsNostr.replace("{players}", players)}`;
+}
+
+function missingNostrProfileSides(session: ZapBattleSession): BattleSide[] {
+  return (["left", "right"] as BattleSide[]).filter((side) => {
+    const contestant = session.contestants[side];
+    return Boolean(contestant.displayName.trim() && contestant.lightningAddress.trim() && !contestant.nostrPubkey?.trim());
+  });
+}
+
+function adminStatusLabel(status: ZapBattleSession["status"], copy: typeof ADMIN_COPY[AdminLocale]): string {
+  if (status === "live") return copy.statusLive;
+  if (status === "paused") return copy.statusPaused;
+  if (status === "ended") return copy.statusEnded;
+  return copy.statusDraft;
 }
 
 function updateContestant(session: ZapBattleSession, side: BattleSide, contestant: Contestant): ZapBattleSession {
@@ -565,8 +656,7 @@ function temporaryProfileCandidateSides(session: ZapBattleSession): BattleSide[]
     return Boolean(
       contestant.displayName.trim() &&
       contestant.lightningAddress.trim() &&
-      !contestant.nostrPubkey?.trim() &&
-      !contestant.temporaryProfile
+      !contestant.nostrPubkey?.trim()
     );
   });
 }

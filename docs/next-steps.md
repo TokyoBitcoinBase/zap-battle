@@ -41,9 +41,12 @@
 - Received Zap demo button triggers confetti and sound.
 - Admin can create app-owned temporary Nostr profiles for contestants without accounts.
 - Admin reset attempts to blank app-owned temporary profiles.
-- Display QR now requests `/api/zap-live/token` and encodes the returned LNURL Pay URL.
+- Display QR now requests `/api/zap-live/token` and encodes a fixed LNURL Pay URL for the Battle ID and side.
 - LNURL metadata endpoint exists.
 - LNURL callback endpoint forwards to the recipient wallet callback with a signed anonymous Zap request.
+- QR codes are intentionally stable across Start, End, Clear Results, test runs, and production runs for the same Battle ID and side. Counting is controlled by session state and Zap receipt filtering, not by changing QR images.
+- Zaps sent before Start can complete payment but do not count because the callback omits `zap_live_starts_at`; live Zaps include the current `startsAt` and are counted only for that run. Pause and End reject new payment callbacks.
+- Each player still needs a Nostr profile pubkey for Zap receipts. Operators should either enter a Nostr profile link/pubkey or use Create temporary profile before Start; Save with only display name and Lightning Address is not enough for a live run.
 - Admin mutation APIs can be protected with `ADMIN_TOKEN`.
 - Display page subscribes to Nostr `kind:9735` Zap receipts and triggers the celebration on matching receipts.
 - Display page also runs a 10-second Nostr receipt catch-up query, plus an immediate catch-up when the tab becomes visible again, to recover from relay disconnects or background-tab misses.

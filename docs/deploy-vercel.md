@@ -80,14 +80,14 @@ Vercel handles HTTP request/response APIs:
 - Session CRUD
 - LNURL Pay metadata
 - LNURL Pay callback
-- Signed QR token generation
+- Fixed QR LNURL generation for each Battle ID and side
 - Anonymous Zap request signing
 
 Vercel should not be used as a long-running relay watcher. Browser pages connect directly to Nostr relays for realtime receipt updates.
 
 Current implementation note:
 
-- `/api/zap-live/token` is implemented.
+- `/api/zap-live/token` returns a stable LNURL Pay URL for the Battle ID and side. The QR image should not change across Start, End, Clear Results, test runs, or production runs.
 - `/api/zap-live/lnurl` is implemented.
 - `/api/zap-live/lnurl/callback` fetches the recipient LNURL Pay metadata, creates a signed Zap request, and forwards the invoice request to the recipient wallet callback.
 - Callback forwarding requires `SERVICE_PRIVATE_KEY` or `SERVICE_NSEC`.

@@ -111,7 +111,7 @@ Vercel is still useful, but not as a session DB:
 
 - LNURL Pay proxy
 - anonymous Zap request signing
-- QR token signing
+- fixed QR LNURL generation
 - optional service-signed session event publishing
 - health checks
 
@@ -124,6 +124,7 @@ The display page subscribes to Nostr `kind:9735` Zap receipt events from the bro
 Current matching logic:
 
 - Use session `startsAt` as the opening boundary and `endsAt + graceSeconds` as the closing boundary. The 30-second grace period is only a hidden receipt settlement window; it is not shown as extra battle time.
+- QR images are stable for each Battle ID and side. The callback adds `zap_live_starts_at` only while the session is live, so pre-Start payments can complete but do not count toward a run.
 - Subscribe with `#p` for the left/right contestant pubkeys.
 - Parse the receipt `description` tag as a signed `kind:9734` Zap request.
 - Prefer `zap_live` and `zap_live_side` tags when present.

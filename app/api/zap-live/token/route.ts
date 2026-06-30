@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSession } from "@/src/server/session-store";
-import { signZapLiveToken } from "@/src/server/lnurl-token";
 import { fetchLnurlPayMetadata, siteUrlFromRequest } from "@/src/server/lnurl";
 import type { BattleSide } from "@/src/types";
-
-const TOKEN_TTL_SECONDS = 60 * 60 * 12;
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({})) as Partial<{ sessionId: string; side: BattleSide }>;
@@ -28,20 +25,11 @@ export async function POST(request: NextRequest) {
     }, { status: 400 });
   }
 
-  const expiresAt = currentSeconds() + TOKEN_TTL_SECONDS;
-  const token = signZapLiveToken({
-    sessionId,
-    side,
-    startsAt: session.startsAt ?? undefined,
-    expiresAt
-  });
   const baseUrl = siteUrlFromRequest(request);
+  const lnurlPayUrl = new URL("/l", baseUrl);
+  lnurlPayUrl.searchParams.set("s", sessionId);
+  lnurlPayUrl.searchParams.set("side", side);
   return NextResponse.json({
-    lnurlPayUrl: `${baseUrl}/l?t=${encodeURIComponent(token)}`,
-    expiresAt
+    lnurlPayUrl: lnurlPayUrl.toString()
   });
-}
-
-function currentSeconds(): number {
-  return Math.floor(Date.now() / 1000);
 }

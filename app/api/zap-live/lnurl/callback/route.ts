@@ -6,23 +6,28 @@ import { verifyZapLiveToken } from "@/src/server/lnurl-token";
 import { readServicePrivateKey, readServicePubkey } from "@/src/server/service-key";
 import { ensureSession } from "@/src/server/session-store";
 import { zapRequestRelaysFromEnv } from "@/src/relays";
+import type { BattleSide } from "@/src/types";
+
+type ZapLiveTarget = {
+  sessionId: string;
+  side: BattleSide;
+};
 
 export async function GET(request: NextRequest) {
-  const token = request.nextUrl.searchParams.get("t") ?? request.nextUrl.searchParams.get("token") ?? "";
   const amount = Number(request.nextUrl.searchParams.get("amount") ?? 0);
   const comment = (request.nextUrl.searchParams.get("comment") ?? "").slice(0, 120);
   try {
-    const payload = verifyZapLiveToken(token);
+    const target = readZapLiveTarget(request);
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ status: "ERROR", reason: "Invalid amount." }, { status: 400 });
     }
-    const session = await ensureSession(payload.sessionId);
-    if (payload.startsAt && payload.startsAt !== session.startsAt) {
-      return NextResponse.json({ status: "ERROR", reason: "This QR code is for a previous battle." }, { status: 409 });
+    const session = await ensureSession(target.sessionId);
+    if (session.status !== "draft" && session.status !== "live") {
+      return NextResponse.json({ status: "ERROR", reason: "This battle is not live." }, { status: 409 });
     }
-    const contestant = session.contestants[payload.side];
-    const lightningAddress = payload.lightningAddress || contestant.lightningAddress;
-    const recipientPubkey = payload.recipientPubkey || contestant.nostrPubkey;
+    const contestant = session.contestants[target.side];
+    const lightningAddress = contestant.lightningAddress;
+    const recipientPubkey = contestant.nostrPubkey;
     if (!recipientPubkey) {
       return NextResponse.json({ status: "ERROR", reason: "Recipient Nostr pubkey is required." }, { status: 400 });
     }
@@ -46,13 +51,13 @@ export async function GET(request: NextRequest) {
       created_at: currentSeconds(),
       content: comment,
       tags: [
-        ["relays", ...(payload.relays || readPublicRelays())],
+        ["relays", ...readPublicRelays()],
         ["amount", String(Math.round(amount))],
         ["lnurl", encodeLnurl(targetLnurlPayUrl)],
         ["p", recipientPubkey],
-        ["zap_live", payload.sessionId],
-        ["zap_live_side", payload.side],
-        ...(payload.startsAt ? [["zap_live_starts_at", String(payload.startsAt)]] : []),
+        ["zap_live", target.sessionId],
+        ["zap_live_side", target.side],
+        ...(session.status === "live" && session.startsAt ? [["zap_live_starts_at", String(session.startsAt)]] : []),
         ["client", "zap-battle"]
       ]
     }, servicePrivateKey);
@@ -79,6 +84,24 @@ export async function GET(request: NextRequest) {
 
 function currentSeconds(): number {
   return Math.floor(Date.now() / 1000);
+}
+
+function readZapLiveTarget(request: NextRequest): ZapLiveTarget {
+  const token = request.nextUrl.searchParams.get("t") ?? request.nextUrl.searchParams.get("token") ?? "";
+  if (token) {
+    const payload = verifyZapLiveToken(token);
+    return {
+      sessionId: payload.sessionId,
+      side: payload.side
+    };
+  }
+
+  const sessionId = request.nextUrl.searchParams.get("s") ?? request.nextUrl.searchParams.get("sessionId") ?? "";
+  const side = request.nextUrl.searchParams.get("side");
+  if (!sessionId || (side !== "left" && side !== "right")) {
+    throw new Error("Invalid QR code.");
+  }
+  return { sessionId, side };
 }
 
 function readPublicRelays(): string[] {
