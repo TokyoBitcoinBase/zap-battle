@@ -200,6 +200,8 @@ select {
   gap: 10px;
   justify-content: flex-end;
   min-width: 0;
+  position: relative;
+  z-index: 24;
 }
 
 .display-admin-actions {
@@ -212,6 +214,11 @@ select {
 .utility-menu {
   flex: 0 0 auto;
   position: relative;
+  z-index: 1;
+}
+
+.utility-menu.open {
+  z-index: 36;
 }
 
 .display-admin-status {
@@ -251,7 +258,7 @@ select {
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
-  z-index: 22;
+  z-index: 36;
 }
 
 .utility-menu-panel .button {
@@ -1000,6 +1007,8 @@ select {
   gap: clamp(16px, 3vh, 30px);
   min-height: calc(100vh - 78px);
   padding: clamp(22px, 5vh, 54px) clamp(18px, 5vw, 72px) clamp(260px, 32vh, 360px);
+  position: relative;
+  z-index: 1;
 }
 
 .final-hero {
@@ -1417,6 +1426,7 @@ select {
     grid-template-columns: 1fr;
     padding: 20px 18px 14px;
     position: relative;
+    z-index: 20;
   }
 
   .brand,
