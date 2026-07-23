@@ -365,6 +365,38 @@ select {
   padding: 18px;
 }
 
+.home-top-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 14px;
+}
+
+.language-switch {
+  background: rgba(31, 32, 55, 0.72);
+  border: 1px solid rgba(136, 133, 201, 0.42);
+  border-radius: 999px;
+  display: inline-flex;
+  padding: 3px;
+}
+
+.language-option {
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 1000;
+  min-height: 28px;
+  padding: 0 11px;
+}
+
+.language-option.active {
+  background: var(--gold);
+  color: #11121d;
+}
+
 .auth-panel {
   align-items: flex-end;
 }
@@ -414,8 +446,7 @@ select {
 }
 
 .saved-battles {
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 20px;
+  padding-top: 20px;
 }
 
 .saved-battles-head {
@@ -533,7 +564,8 @@ select {
 }
 
 .new-battle {
-  padding-top: 20px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 20px;
 }
 
 .new-battle h2 {
@@ -563,6 +595,16 @@ select {
 }
 
 @media (max-width: 680px) {
+  .home-topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .home-top-actions {
+    justify-content: space-between;
+    width: 100%;
+  }
+
   .saved-battle-list li {
     grid-template-columns: 1fr;
   }
