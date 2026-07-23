@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
 import { BattleDisplay } from "@/src/ui/battle-display";
 import type { ZapBattleSession } from "@/src/types";
 
@@ -147,7 +148,7 @@ function readStoredAdminToken(sessionId?: string): string {
     globalAdminTokenStorageKey()
   ];
   for (const key of keys) {
-    const value = sessionStorage.getItem(key) ?? localStorage.getItem(key);
+    const value = readBrowserStorage(key);
     if (value) return value;
   }
   return "";
@@ -159,8 +160,7 @@ function writeStoredAdminToken(adminToken: string, sessionId?: string): void {
     globalAdminTokenStorageKey()
   ];
   keys.forEach((key) => {
-    sessionStorage.setItem(key, adminToken);
-    localStorage.setItem(key, adminToken);
+    writeBrowserStorage(key, adminToken);
   });
 }
 

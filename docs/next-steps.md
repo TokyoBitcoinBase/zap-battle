@@ -49,7 +49,7 @@
 - Each player still needs a Nostr profile pubkey for Zap receipts. Operators should either enter a Nostr profile link/pubkey or use Create temporary profile before Start; Save with only display name and Lightning Address is not enough for a live run.
 - Admin mutation APIs can be protected with `ADMIN_TOKEN`.
 - Display page subscribes to Nostr `kind:9735` Zap receipts and triggers the celebration on matching receipts.
-- Display page also runs a 10-second Nostr receipt catch-up query, plus an immediate catch-up when the tab becomes visible again, to recover from relay disconnects or background-tab misses.
+- Display page also runs a 10-second server-side Nostr receipt catch-up query, plus an immediate catch-up when the tab becomes visible again, to recover from browser relay blocks, relay disconnects, or background-tab misses.
 - Admin battle time accepts minutes and seconds, so dance battle durations like 2:30 can be entered directly.
 - End Battle captures the current totals and recent Zap receipts as `finalResult` in the session event. The display switches to a fixed Final Result screen until Reset.
 - Display page can show an Admin modal when opened with `?admin=1`. The normal WordPress iframe URL should omit this query parameter.
@@ -75,6 +75,6 @@ See `docs/nostr-session-storage.md`.
 - Creating/configuring Battle IDs requires `ADMIN_TOKEN`; public viewing does not.
 - Confetti/cracker animation on received Zap.
 - Short sound effect on received Zap after the operator enables sound.
-- Realtime path is Nostr WebSocket subscription. Catch-up runs every 10 seconds as a safety net, not as the primary receiver.
+- Realtime path is the browser's Nostr WebSocket subscription. Server-side catch-up runs every 10 seconds as a safety net, not as the primary receiver.
 
 Browsers block autoplay audio, so the screen needs a visible sound toggle. After the operator turns sound on once, incoming Zaps can trigger the effect sound.

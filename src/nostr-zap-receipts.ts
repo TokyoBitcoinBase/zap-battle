@@ -83,6 +83,27 @@ export async function fetchZapReceiptsOnce({
   }
 }
 
+export async function fetchZapReceiptsFromServer({
+  sessionId,
+  since
+}: {
+  sessionId: string;
+  since?: number;
+}): Promise<ZapReceiptItem[]> {
+  const search = new URLSearchParams();
+  if (typeof since === "number" && Number.isFinite(since)) {
+    search.set("since", String(Math.max(0, Math.floor(since))));
+  }
+  const query = search.toString();
+  const response = await fetch(
+    `/api/zap-live/sessions/${encodeURIComponent(sessionId)}/receipts${query ? `?${query}` : ""}`,
+    { cache: "no-store" }
+  );
+  if (!response.ok) throw new Error("Could not load Zap receipts.");
+  const json = await response.json() as { receipts?: unknown };
+  return Array.isArray(json.receipts) ? json.receipts as ZapReceiptItem[] : [];
+}
+
 function createZapReceiptFilter(session: ZapBattleSession, since: number) {
   const contestantPubkeys = [
     session.contestants.left.nostrPubkey,

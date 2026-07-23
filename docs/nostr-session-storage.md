@@ -115,11 +115,14 @@ Vercel is still useful, but not as a session DB:
 - optional service-signed session event publishing
 - health checks
 
-Realtime Zap receipt display remains browser-to-relay.
+Realtime Zap receipt display remains browser-to-relay. A server-side catch-up endpoint
+queries the same relays every 10 seconds so receipt updates can recover when browser
+WebSocket access is blocked or interrupted.
 
 ## Receipt Subscription
 
 The display page subscribes to Nostr `kind:9735` Zap receipt events from the browser.
+It uses the app API for periodic catch-up and final result reconciliation.
 
 Current matching logic:
 

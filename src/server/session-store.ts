@@ -2,7 +2,7 @@ import { finalizeEvent, getPublicKey, verifyEvent } from "nostr-tools/pure";
 import { SimplePool } from "nostr-tools/pool";
 import { mockSession } from "@/src/mock-session";
 import { relaysFromEnv } from "@/src/relays";
-import { normalizeSession } from "@/src/session-validation";
+import { nextSessionUpdatedAt, normalizeSession } from "@/src/session-validation";
 import { hexToBytes, readServicePrivateKey } from "@/src/server/service-key";
 import type { ZapBattleSession } from "@/src/types";
 
@@ -32,7 +32,8 @@ export async function getSession(sessionId: string): Promise<ZapBattleSession | 
 
 export async function deleteSession(sessionId: string): Promise<void> {
   if (nostrSessionStorageEnabled()) {
-    await publishNostrSessionDeletion(sessionId);
+    const existing = await getNostrSession(sessionId);
+    await publishNostrSessionDeletion(sessionId, nextSessionUpdatedAt(existing?.updatedAt));
   }
   sessions().delete(sessionId);
 }
@@ -98,7 +99,11 @@ function latestSessionFromEvents(events: NostrSessionEvent[], sessionId: string)
       }
     })
     .filter((candidate): candidate is { event: NostrSessionEvent; parsed: unknown } => Boolean(candidate))
-    .sort((left, right) => sessionSortTime(right) - sessionSortTime(left));
+    .sort((left, right) => (
+      sessionSortTime(right) - sessionSortTime(left) ||
+      right.event.created_at - left.event.created_at ||
+      left.event.id.localeCompare(right.event.id)
+    ));
 
   const latest = candidates[0];
   if (!latest || isDeletedSession(latest.parsed, sessionId)) return null;
@@ -114,16 +119,16 @@ function sessionSortTime(candidate: { event: NostrSessionEvent; parsed: unknown 
   return candidate.event.created_at;
 }
 
-async function publishNostrSessionDeletion(sessionId: string): Promise<void> {
+async function publishNostrSessionDeletion(sessionId: string, deletedAt: number): Promise<void> {
   const privateKey = readServicePrivateKey();
   if (!privateKey) return;
   const event = finalizeEvent({
     kind: SESSION_KIND,
-    created_at: currentSeconds(),
+    created_at: deletedAt,
     content: JSON.stringify({
       id: sessionId,
       deleted: true,
-      deletedAt: currentSeconds()
+      deletedAt
     }),
     tags: [
       ["d", sessionDTag(sessionId)],
@@ -134,10 +139,7 @@ async function publishNostrSessionDeletion(sessionId: string): Promise<void> {
   }, privateKey);
   const pool = new SimplePool();
   try {
-    await Promise.race([
-      Promise.allSettled(pool.publish(readSessionRelays(), event, { maxWait: 2000 })),
-      timeout(1600)
-    ]);
+    await publishToAtLeastOneRelay(pool, event, 2000);
   } finally {
     pool.close(readSessionRelays());
   }
@@ -146,10 +148,9 @@ async function publishNostrSessionDeletion(sessionId: string): Promise<void> {
 async function publishNostrSession(session: ZapBattleSession): Promise<void> {
   const privateKey = readServicePrivateKey();
   if (!privateKey) return;
-  const pubkey = getPublicKey(privateKey);
   const event = finalizeEvent({
     kind: SESSION_KIND,
-    created_at: currentSeconds(),
+    created_at: Math.max(currentSeconds(), Math.floor(session.updatedAt ?? 0)),
     content: JSON.stringify(session),
     tags: [
       ["d", sessionDTag(session.id)],
@@ -160,12 +161,32 @@ async function publishNostrSession(session: ZapBattleSession): Promise<void> {
   }, privateKey);
   const pool = new SimplePool();
   try {
-    await Promise.race([
-      Promise.allSettled(pool.publish(readSessionRelays(), event, { maxWait: 2200 })),
-      timeout(2200)
-    ]);
+    await publishToAtLeastOneRelay(pool, event, 2200);
   } finally {
     pool.close(readSessionRelays());
+  }
+}
+
+async function publishToAtLeastOneRelay(
+  pool: SimplePool,
+  event: NostrSessionEvent,
+  maxWait: number
+): Promise<void> {
+  let successCount = 0;
+  const attempts = pool.publish(readSessionRelays(), event, { maxWait }).map((attempt) => (
+    attempt.then(
+      () => {
+        successCount += 1;
+      },
+      () => undefined
+    )
+  ));
+  await Promise.race([
+    Promise.all(attempts),
+    timeout(maxWait)
+  ]);
+  if (successCount === 0) {
+    throw new Error("Could not save the session to any configured Nostr relay.");
   }
 }
 

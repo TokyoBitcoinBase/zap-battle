@@ -43,6 +43,13 @@ export function validateSessionReady(session: ZapBattleSession): string[] {
   return errors;
 }
 
+export function nextSessionUpdatedAt(previousUpdatedAt?: number | null): number {
+  const previous = typeof previousUpdatedAt === "number" && Number.isFinite(previousUpdatedAt)
+    ? Math.floor(previousUpdatedAt)
+    : 0;
+  return Math.max(currentSeconds(), previous + 1);
+}
+
 function normalizeContestant(input: unknown, side: BattleSide): Contestant {
   const value = isRecord(input) ? input : {};
   return {

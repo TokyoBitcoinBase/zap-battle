@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/server/admin-auth";
 import { ensureSession, saveSession } from "@/src/server/session-store";
-import { normalizeSession } from "@/src/session-validation";
+import { nextSessionUpdatedAt, normalizeSession } from "@/src/session-validation";
 import type { ZapBattleFinalResult } from "@/src/types";
 
 type RouteContext = {
@@ -12,7 +12,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
   const { sessionId } = await context.params;
-  const session = await ensureSession(sessionId);
+  let session;
+  try {
+    session = await ensureSession(sessionId);
+  } catch {
+    return persistenceUnavailable();
+  }
   const body = await request.json().catch(() => ({}));
   const endedAt = currentSeconds();
   const incomingFinalResult = isRecord(body) ? body.finalResult : undefined;
@@ -24,9 +29,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
     status: "ended" as const,
     endsAt: endedAt,
     finalResult,
-    updatedAt: endedAt
+    updatedAt: nextSessionUpdatedAt(session.updatedAt)
   }, sessionId);
-  await saveSession(next);
+  try {
+    await saveSession(next);
+  } catch {
+    return persistenceUnavailable();
+  }
   return NextResponse.json({ session: next });
 }
 
@@ -51,4 +60,11 @@ function isEmptyFinalResult(value: unknown): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function persistenceUnavailable(): NextResponse {
+  return NextResponse.json({
+    error: "persistence_unavailable",
+    errors: ["Could not save session data to the configured Nostr relays. Please try again."]
+  }, { status: 503 });
 }

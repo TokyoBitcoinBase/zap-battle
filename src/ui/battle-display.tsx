@@ -2,8 +2,13 @@
 
 import QRCode from "qrcode";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
 import { encodeLnurl } from "@/src/lnurl";
-import { fetchZapReceiptsOnce, subscribeToZapReceipts } from "@/src/nostr-zap-receipts";
+import {
+  fetchZapReceiptsFromServer,
+  fetchZapReceiptsOnce,
+  subscribeToZapReceipts
+} from "@/src/nostr-zap-receipts";
 import type { BattleSide, Contestant, ZapBattleSession, ZapReceiptItem } from "@/src/types";
 import { BattleAdminEditor } from "@/src/ui/battle-admin-editor";
 
@@ -359,10 +364,10 @@ export function BattleDisplay({
     }
 
     if (session.status === "ended") {
-      void fetchZapReceiptsOnce({
-        session,
+      void fetchZapReceiptsFromServer({
+        sessionId: session.id,
         since: session.startsAt
-      }).then(addReceipts);
+      }).then(addReceipts).catch(() => undefined);
       return;
     }
 
@@ -380,17 +385,19 @@ export function BattleDisplay({
       catchupRunning = true;
       try {
         const newestSeen = latestReceiptCreatedAtRef.current || session.startsAt || 0;
-        const receipts = await fetchZapReceiptsOnce({
-          session,
+        const receipts = await fetchZapReceiptsFromServer({
+          sessionId: session.id,
           since: Math.max(0, newestSeen - 90)
         });
         if (!cancelled) addReceipts(receipts);
+      } catch {
+        // The realtime browser subscription remains active; retry on the next interval.
       } finally {
         catchupRunning = false;
       }
     }
 
-    const intervalId = window.setInterval(() => void catchUp(), 5_000);
+    const intervalId = window.setInterval(() => void catchUp(), 10_000);
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") void catchUp();
     };
@@ -406,9 +413,9 @@ export function BattleDisplay({
   }, [session]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("zap-battle:locale");
+    const stored = readBrowserStorage("zap-battle:locale", ["local"]);
     if (stored === "ja" || stored === "en") setLocale(stored);
-    setSoundEnabled(localStorage.getItem(SOUND_ENABLED_STORAGE_KEY) === "true");
+    setSoundEnabled(readBrowserStorage(SOUND_ENABLED_STORAGE_KEY, ["local"]) === "true");
   }, []);
 
   useEffect(() => {
@@ -491,7 +498,7 @@ export function BattleDisplay({
   function toggleLocale() {
     setLocale((current) => {
       const next = current === "en" ? "ja" : "en";
-      localStorage.setItem("zap-battle:locale", next);
+      writeBrowserStorage("zap-battle:locale", next, ["local"]);
       return next;
     });
   }
@@ -499,7 +506,7 @@ export function BattleDisplay({
   function toggleSound() {
     setSoundEnabled((current) => {
       const next = !current;
-      localStorage.setItem(SOUND_ENABLED_STORAGE_KEY, String(next));
+      writeBrowserStorage(SOUND_ENABLED_STORAGE_KEY, String(next), ["local"]);
       if (next) void primeZapSound().then(() => playSoundEnabledCue());
       return next;
     });
@@ -521,7 +528,9 @@ export function BattleDisplay({
 
   async function finalizeBattle() {
     const receipts = session.startsAt
-      ? await fetchZapReceiptsOnce({ session, since: session.startsAt, maxWait: 3500 })
+      ? await fetchZapReceiptsFromServer({ sessionId: session.id, since: session.startsAt }).catch(() => (
+        fetchZapReceiptsOnce({ session, since: session.startsAt ?? undefined, maxWait: 3500 })
+      )).catch(() => [])
       : [];
     const finalReceipts = mergeZapReceiptItems([...items, ...receipts]);
     await postAdminAction("end", {
@@ -539,9 +548,13 @@ export function BattleDisplay({
         headers: adminHeaders(adminToken),
         body: body ? JSON.stringify(body) : undefined
       });
-      const json = await response.json() as SessionResponse;
+      const json = await response.json().catch(() => ({})) as Partial<SessionResponse>;
       if (!response.ok) {
         setAdminActionStatus(action === "start" && json.errors?.length ? formatStartErrors(json.errors, copy) : copy.actionFailed);
+        return;
+      }
+      if (!json.session) {
+        setAdminActionStatus(copy.actionFailed);
         return;
       }
       onSessionChange?.(json.session);
@@ -1100,7 +1113,7 @@ function formatStartErrors(errors: string[], copy: typeof COPY[Locale]): string 
 function currentAdminToken(sessionId: string): string {
   const keys = [adminTokenStorageKey(sessionId), globalAdminTokenStorageKey()];
   for (const key of keys) {
-    const value = sessionStorage.getItem(key) ?? localStorage.getItem(key);
+    const value = readBrowserStorage(key);
     if (value) return value;
   }
   return "";

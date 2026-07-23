@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/server/admin-auth";
 import { deleteSession, ensureSession, getSession, saveSession } from "@/src/server/session-store";
-import { normalizeSession } from "@/src/session-validation";
+import { nextSessionUpdatedAt, normalizeSession } from "@/src/session-validation";
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
@@ -13,8 +13,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   if (shouldCreate) {
     const unauthorized = requireAdmin(_request);
     if (unauthorized) return unauthorized;
-    const session = await ensureSession(sessionId);
-    return noStoreJson({ session });
+    try {
+      const session = await ensureSession(sessionId);
+      return noStoreJson({ session });
+    } catch {
+      return persistenceUnavailable();
+    }
   }
   const session = await getSession(sessionId);
   if (!session) {
@@ -28,22 +32,42 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   if (unauthorized) return unauthorized;
   const { sessionId } = await context.params;
   const body = await request.json().catch(() => ({}));
-  const existing = await ensureSession(sessionId);
-  const session = normalizeSession({ ...existing, ...body, id: sessionId }, sessionId);
-  await saveSession(session);
-  return noStoreJson({ session });
+  try {
+    const existing = await ensureSession(sessionId);
+    const session = normalizeSession({
+      ...existing,
+      ...body,
+      id: sessionId,
+      updatedAt: nextSessionUpdatedAt(existing.updatedAt)
+    }, sessionId);
+    await saveSession(session);
+    return noStoreJson({ session });
+  } catch {
+    return persistenceUnavailable();
+  }
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
   const { sessionId } = await context.params;
-  await deleteSession(sessionId);
-  return noStoreJson({ deleted: true });
+  try {
+    await deleteSession(sessionId);
+    return noStoreJson({ deleted: true });
+  } catch {
+    return persistenceUnavailable();
+  }
 }
 
 function noStoreJson(body: unknown, init?: ResponseInit): NextResponse {
   const response = NextResponse.json(body, init);
   response.headers.set("cache-control", "no-store, no-cache, must-revalidate");
   return response;
+}
+
+function persistenceUnavailable(): NextResponse {
+  return noStoreJson({
+    error: "persistence_unavailable",
+    errors: ["Could not save session data to the configured Nostr relays. Please try again."]
+  }, { status: 503 });
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { verifyEvent } from "nostr-tools/pure";
 import { SimplePool } from "nostr-tools/pool";
+import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
 import { cleanupTemporaryProfile, createTemporaryProfile } from "@/src/nostr-temp-profile";
 import { normalizeNostrPubkey } from "@/src/nostr-pubkey";
 import { relaysFromEnv } from "@/src/relays";
@@ -270,8 +271,9 @@ export function BattleAdminEditor({
         headers: adminHeaders(adminToken),
         body: JSON.stringify(sessionToSave)
       });
-      const json = await response.json() as SessionResponse & { errors?: string[] };
+      const json = await response.json().catch(() => ({})) as Partial<SessionResponse> & { errors?: string[] };
       if (!response.ok) throw new Error(json.errors?.join(" / ") || copy.saveFailed);
+      if (!json.session) throw new Error(copy.saveFailed);
       setSession(json.session);
       onSessionChange?.(json.session);
       setStatus(saveStatusMessage(json.session, successMessage, copy));
@@ -860,7 +862,7 @@ function readStoredAdminToken(sessionId?: string): string {
     globalAdminTokenStorageKey()
   ];
   for (const key of keys) {
-    const value = sessionStorage.getItem(key) ?? localStorage.getItem(key);
+    const value = readBrowserStorage(key);
     if (value) return value;
   }
   return "";
@@ -872,8 +874,7 @@ function writeStoredAdminToken(adminToken: string, sessionId?: string): void {
     globalAdminTokenStorageKey()
   ];
   keys.forEach((key) => {
-    sessionStorage.setItem(key, adminToken);
-    localStorage.setItem(key, adminToken);
+    writeBrowserStorage(key, adminToken);
   });
 }
 

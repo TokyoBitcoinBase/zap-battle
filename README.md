@@ -19,7 +19,7 @@ https://zap-battle.tokyobitcoin.space
 - LNURL Pay QR generation through Vercel API routes
 - Anonymous signed Zap requests with `zap_live` and `zap_live_side` tags
 - Browser-side Nostr relay subscription for realtime Zap receipts
-- 10-second catch-up query for missed receipts
+- 10-second server-side catch-up query for missed or browser-blocked receipts
 - Final Result screen after `End Battle`
 - No app database: sessions/results are stored as Nostr `kind:30078` events
 - Temporary contestant Nostr profiles for entrants without Nostr accounts

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
 
 export function BattleLauncher() {
   const router = useRouter();
@@ -138,7 +139,7 @@ function readStoredAdminToken(sessionId?: string): string {
     globalAdminTokenStorageKey()
   ];
   for (const key of keys) {
-    const value = sessionStorage.getItem(key) ?? localStorage.getItem(key);
+    const value = readBrowserStorage(key);
     if (value) return value;
   }
   return "";
@@ -150,8 +151,7 @@ function writeStoredAdminToken(adminToken: string, sessionId?: string): void {
     globalAdminTokenStorageKey()
   ];
   keys.forEach((key) => {
-    sessionStorage.setItem(key, adminToken);
-    localStorage.setItem(key, adminToken);
+    writeBrowserStorage(key, adminToken);
   });
 }
 

@@ -1,5 +1,6 @@
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { SimplePool } from "nostr-tools/pool";
+import { readBrowserStorage, removeBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
 import { relaysFromEnv } from "@/src/relays";
 import type { BattleSide, Contestant } from "@/src/types";
 
@@ -66,7 +67,7 @@ function publishMetadata(secretKey: Uint8Array, metadata: Record<string, unknown
 
 function readTemporaryProfile(sessionId: string, side: BattleSide): TemporaryProfileRecord | null {
   try {
-    const raw = localStorage.getItem(storageKey(sessionId, side));
+    const raw = readBrowserStorage(storageKey(sessionId, side), ["local"]);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<TemporaryProfileRecord>;
     if (!parsed.pubkey || !/^[0-9a-f]{64}$/i.test(parsed.pubkey)) return null;
@@ -81,11 +82,14 @@ function readTemporaryProfile(sessionId: string, side: BattleSide): TemporaryPro
 }
 
 function writeTemporaryProfile(sessionId: string, side: BattleSide, record: TemporaryProfileRecord): void {
-  localStorage.setItem(storageKey(sessionId, side), JSON.stringify(record));
+  const stored = writeBrowserStorage(storageKey(sessionId, side), JSON.stringify(record), ["local"]);
+  if (!stored) {
+    throw new Error("This browser did not allow the temporary Nostr key to be stored.");
+  }
 }
 
 function removeTemporaryProfile(sessionId: string, side: BattleSide): void {
-  localStorage.removeItem(storageKey(sessionId, side));
+  removeBrowserStorage(storageKey(sessionId, side), ["local"]);
 }
 
 function storageKey(sessionId: string, side: BattleSide): string {
