@@ -53,8 +53,9 @@
 - Admin battle time accepts minutes and seconds, so dance battle durations like 2:30 can be entered directly.
 - End Battle captures the current totals and recent Zap receipts as `finalResult` in the session event. The display switches to a fixed Final Result screen until Reset.
 - Display page can show an Admin modal when opened with `?admin=1`. The normal WordPress iframe URL should omit this query parameter.
-- Top page has an Admin Token gate before the Battle ID launcher. Operators enter an event-specific Battle ID and open either the operator display or public display from there.
-- Public display does not auto-create unknown Battle IDs. Unknown IDs show `Battle not configured` until an operator creates the session with a valid Admin Token.
+- Top page has an Admin Token gate before the Battle ID launcher, lists saved Battle URLs, and uses an explicit one-time `create=1` request only when an operator enters a new Battle ID.
+- Public and existing operator displays do not auto-create unknown or deactivated Battle IDs. Unknown IDs show `Battle not configured` until an operator deliberately creates the session from the top page.
+- URL deactivation publishes a newer `kind:30078` tombstone, removes the ID from the saved list, and tries to blank app-created temporary profiles whose keys remain in the current browser. It cannot guarantee removal of older relay/cache copies or independent Zap receipts.
 - QR/Zap request relay tag uses the smaller Blogstr battle set: `wss://yabu.me`, `wss://relay.primal.net`, `wss://nos.lol`. This keeps LNURL QR density lower for wallet scanning.
 - Internal session/profile/receipt relay defaults use the standard Blogstr set: `wss://yabu.me`, `wss://relay.primal.net`, `wss://relay.damus.io`, `wss://nos.lol`.
 

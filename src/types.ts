@@ -26,6 +26,11 @@ export type ZapBattleSession = {
   updatedAt?: number;
 };
 
+export type ZapBattleSessionSummary = Pick<
+  ZapBattleSession,
+  "id" | "status" | "title" | "createdAt" | "updatedAt"
+>;
+
 export type ZapReceiptItem = {
   id: string;
   side: BattleSide;

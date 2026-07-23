@@ -9,22 +9,33 @@ type SessionResponse = {
   session: ZapBattleSession;
 };
 
-export function BattleDisplayLoader({ adminEnabled = false, sessionId }: { adminEnabled?: boolean; sessionId: string }) {
+export function BattleDisplayLoader({
+  adminEnabled = false,
+  createEnabled = false,
+  sessionId
+}: {
+  adminEnabled?: boolean;
+  createEnabled?: boolean;
+  sessionId: string;
+}) {
   const [session, setSession] = useState<ZapBattleSession | null>(null);
   const [error, setError] = useState("");
   const [notConfigured, setNotConfigured] = useState(false);
   const [adminAuthRequired, setAdminAuthRequired] = useState(false);
   const [adminTokenDraft, setAdminTokenDraft] = useState("");
+  const [deactivationStatus, setDeactivationStatus] = useState("");
   const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
-    if (adminAuthRequired) return;
+    if (adminAuthRequired || notConfigured) return;
     let cancelled = false;
+    let mayCreate = adminEnabled && createEnabled;
     async function loadSession() {
       try {
         const adminToken = readStoredAdminToken(sessionId);
         setAdminTokenDraft(adminToken);
-        const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(sessionId)}${adminEnabled ? "?create=1" : ""}`, {
+        const shouldCreate = mayCreate;
+        const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(sessionId)}${shouldCreate ? "?create=1" : ""}`, {
           cache: "no-store",
           headers: adminEnabled ? adminHeaders(adminToken) : undefined
         });
@@ -37,13 +48,20 @@ export function BattleDisplayLoader({ adminEnabled = false, sessionId }: { admin
           return;
         }
         if (response.status === 404) {
-          if (!cancelled) setNotConfigured(true);
+          if (!cancelled) {
+            setError("");
+            setNotConfigured(true);
+            setSession(null);
+          }
           return;
         }
         if (!response.ok) throw new Error("セッションを読み込めませんでした。");
         const json = await response.json() as SessionResponse;
+        mayCreate = false;
         if (!cancelled) {
+          if (shouldCreate) removeCreateQueryParam();
           setAdminAuthRequired(false);
+          setDeactivationStatus("");
           setError("");
           setNotConfigured(false);
           setSession(json.session);
@@ -58,7 +76,7 @@ export function BattleDisplayLoader({ adminEnabled = false, sessionId }: { admin
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [adminAuthRequired, adminEnabled, reloadNonce, sessionId]);
+  }, [adminAuthRequired, adminEnabled, createEnabled, notConfigured, reloadNonce, sessionId]);
 
   function submitAdminToken(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,7 +133,14 @@ export function BattleDisplayLoader({ adminEnabled = false, sessionId }: { admin
           <section className="topbar">
             <div className="title">
               <h1>Zap Battle</h1>
-              <p>Battle not configured. Open the operator display from the top page first.</p>
+              <p>
+                {deactivationStatus || (adminEnabled
+                  ? "このBattle URLは無効です。再利用する場合はトップページの「新しいBattle URL」から作成してください。"
+                  : "Battle not configured. Open the operator display from the top page first.")}
+              </p>
+              {deactivationStatus && adminEnabled ? (
+                <p>再利用する場合はトップページの「新しいBattle URL」から作成してください。</p>
+              ) : null}
             </div>
           </section>
         </main>
@@ -133,7 +158,29 @@ export function BattleDisplayLoader({ adminEnabled = false, sessionId }: { admin
     );
   }
 
-  return <BattleDisplay adminEnabled={adminEnabled} onSessionChange={setSession} session={session} />;
+  return (
+    <BattleDisplay
+      adminEnabled={adminEnabled}
+      onSessionChange={setSession}
+      onSessionDelete={(message) => {
+        setDeactivationStatus(message);
+        setSession(null);
+        setNotConfigured(true);
+      }}
+      session={session}
+    />
+  );
+}
+
+function removeCreateQueryParam(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("create")) return;
+  url.searchParams.delete("create");
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`
+  );
 }
 
 function adminHeaders(adminToken: string): HeadersInit {

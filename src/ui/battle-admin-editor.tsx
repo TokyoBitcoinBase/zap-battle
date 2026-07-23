@@ -43,11 +43,12 @@ const ADMIN_COPY = {
     createTempSaved: "Temporary Nostr profile created and saved to the session.",
     createMissingTemps: "Create temporary Nostr profiles for players without Nostr accounts",
     createMissingTempsNote: "Uses the entered display name and Lightning Address, then stores the temporary keys only in this browser.",
-    deleteConfirm: "Delete the data for this display URL? The public display will become not configured. The URL route itself will still exist.",
-    deleteFailed: "Could not delete URL data.",
-    deleteSaved: "Display URL data deleted. The public display is now not configured.",
-    deleteUrlData: "Delete URL Data",
-    deleting: "Deleting URL data...",
+    deleteConfirm: "Deactivate this display URL? The public display will become unavailable and app-created temporary profiles will be cleared when this browser still has their keys. The URL route remains reusable, and prior events or Zap receipts may remain on Nostr relays.",
+    deleteFailed: "Could not deactivate this URL.",
+    deleteSaved: "Display URL deactivated.",
+    deleteSavedPartial: "Display URL deactivated, but one or more temporary Nostr profiles could not be cleared.",
+    deleteUrlData: "Deactivate URL",
+    deleting: "Deactivating URL...",
     displayName: "Display name",
     displayNameNote: "Use only a public nickname or stage name. Do not enter a legal name unless the contestant has approved public display.",
     iframeTitle: "WordPress iframe",
@@ -112,11 +113,12 @@ const ADMIN_COPY = {
     createTempSaved: "一時Nostrプロフィールを作成し、セッションへ保存しました。",
     createMissingTemps: "Nostrアカウントがないプレイヤー用に一時Nostrプロフィールを作成する",
     createMissingTempsNote: "入力済みの表示名とライトニングアドレスを使います。一時鍵はこのブラウザにのみ保存されます。",
-    deleteConfirm: "この表示URLのデータを削除しますか？公開表示は未設定に戻ります。URLのルート自体は残ります。",
-    deleteFailed: "URLデータを削除できませんでした。",
-    deleteSaved: "表示URLのデータを削除しました。公開表示は未設定になりました。",
-    deleteUrlData: "URLデータ削除",
-    deleting: "URLデータを削除しています...",
+    deleteConfirm: "この表示URLを無効化しますか？公開画面は利用できなくなり、このブラウザに鍵がある一時Nostrプロフィールは可能な範囲で空にします。URLのルートは再利用できますが、過去イベントやZap履歴がNostrリレーから完全に消える保証はありません。",
+    deleteFailed: "URLを無効化できませんでした。",
+    deleteSaved: "表示URLを無効化しました。",
+    deleteSavedPartial: "表示URLを無効化しましたが、一部の一時Nostrプロフィールを空にできませんでした。",
+    deleteUrlData: "URLを無効化",
+    deleting: "URLを無効化しています...",
     displayName: "表示名",
     displayNameNote: "公開可能なニックネームまたはステージネームを使ってください。本人が公開を許可していない本名は入力しないでください。",
     iframeTitle: "WordPress iframe",
@@ -193,11 +195,13 @@ export function BattleAdminEditor({
   compact = false,
   locale = "en",
   onSessionChange,
+  onSessionDelete,
   sessionId
 }: {
   compact?: boolean;
   locale?: AdminLocale;
   onSessionChange?(session: ZapBattleSession): void;
+  onSessionDelete?(message: string): void;
   sessionId: string;
 }) {
   const copy = ADMIN_COPY[locale];
@@ -226,7 +230,7 @@ export function BattleAdminEditor({
     async function loadSession() {
       try {
         setLoading(true);
-        const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(sessionId)}?create=1`, {
+        const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(sessionId)}`, {
           cache: "no-store",
           headers: adminHeaders(storedToken)
         });
@@ -451,10 +455,28 @@ export function BattleAdminEditor({
       });
       const json = await response.json().catch(() => ({})) as { errors?: string[] };
       if (!response.ok) throw new Error(json.errors?.join(" / ") || copy.deleteFailed);
-      setSession({ ...DEFAULT_SESSION, id: sessionId });
-      onSessionChange?.({ ...DEFAULT_SESSION, id: sessionId });
+      const cleanupResults = await Promise.all((["left", "right"] as BattleSide[])
+        .filter((side) => session.contestants[side].temporaryProfile)
+        .map(async (side) => {
+          const contestant = session.contestants[side];
+          try {
+            return await cleanupTemporaryProfile({
+              sessionId,
+              side,
+              expectedPubkey: contestant.nostrPubkey
+            });
+          } catch {
+            return "failed" as const;
+          }
+        }));
+      const tempCleanupIncomplete = cleanupResults.some((result) => result !== "cleaned");
+      const inactiveSession = { ...DEFAULT_SESSION, id: sessionId };
+      const finalStatus = tempCleanupIncomplete ? copy.deleteSavedPartial : copy.deleteSaved;
+      setSession(inactiveSession);
+      if (onSessionDelete) onSessionDelete(finalStatus);
+      else onSessionChange?.(inactiveSession);
       setDurationDraft(durationInputParts(DEFAULT_SESSION.durationSeconds));
-      setStatus(copy.deleteSaved);
+      setStatus(finalStatus);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : copy.deleteFailed);
     } finally {

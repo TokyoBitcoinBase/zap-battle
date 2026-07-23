@@ -103,7 +103,25 @@ Current admin UI behavior:
 
 - `Blank temp profile` clears one app-created temporary profile if the key is still in this browser.
 - `Reset` tries to blank both app-created temporary profiles, then clears the session back to draft values.
+- `Deactivate URL` publishes a newer session tombstone, omits the ID from the saved URL list, and tries to blank both app-created temporary profiles after the tombstone is accepted.
 - Existing participant npubs that were manually entered are not blanked, because this app does not have their private keys.
+
+## URL Deactivation
+
+URL deactivation is a logical Nostr deletion, not guaranteed physical erasure:
+
+1. Publish a newer service-signed `kind:30078` event with the same `d` tag and
+   `deleted: true`.
+2. Treat that tombstone as distinct from a Battle ID that has never existed, so
+   stale server-memory data cannot restore the session.
+3. Stop operator polling from recreating the session. Only the top-page new-ID
+   flow may send the one-time explicit `create=1` request.
+4. Try to blank app-created temporary profiles when their keys remain in the
+   current browser.
+
+The public route remains part of the app, earlier relay or cache copies may
+remain, and Zap receipt events are not deleted. Reusing the same ID from the top
+page deliberately publishes a new session event after the tombstone.
 
 ## What Vercel Still Does
 

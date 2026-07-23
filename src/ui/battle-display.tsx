@@ -205,10 +205,12 @@ type SessionResponse = {
 export function BattleDisplay({
   adminEnabled = false,
   onSessionChange,
+  onSessionDelete,
   session
 }: {
   adminEnabled?: boolean;
   onSessionChange?(session: ZapBattleSession): void;
+  onSessionDelete?(message: string): void;
   session: ZapBattleSession;
 }) {
   const [items, setItems] = useState<ZapReceiptItem[]>([]);
@@ -698,7 +700,13 @@ export function BattleDisplay({
                 {copy.close}
               </button>
             </div>
-            <BattleAdminEditor compact locale={locale} onSessionChange={onSessionChange} sessionId={session.id} />
+            <BattleAdminEditor
+              compact
+              locale={locale}
+              onSessionChange={onSessionChange}
+              onSessionDelete={onSessionDelete}
+              sessionId={session.id}
+            />
           </div>
         </div>
       ) : null}
