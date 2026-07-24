@@ -423,6 +423,11 @@ select {
   margin: 6px 0 0;
 }
 
+.home-topbar .title p {
+  line-height: 1.5;
+  min-height: 3em;
+}
+
 .home-actions {
   display: flex;
   flex-wrap: wrap;
@@ -611,6 +616,24 @@ select {
 
   .saved-battle-actions {
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 860px) and (min-width: 681px) {
+  .home-topbar .title p {
+    min-height: 4.5em;
+  }
+}
+
+@media (max-width: 430px) {
+  .home-topbar .title p {
+    min-height: 4.5em;
+  }
+}
+
+@media (max-width: 340px) {
+  .home-topbar .title p {
+    min-height: 6em;
   }
 }
 
