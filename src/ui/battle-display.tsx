@@ -11,6 +11,7 @@ import {
 } from "@/src/nostr-zap-receipts";
 import type { BattleSide, Contestant, ZapBattleSession, ZapReceiptItem } from "@/src/types";
 import { BattleAdminEditor } from "@/src/ui/battle-admin-editor";
+import { receiptEventAcceptedUntil } from "@/src/zap-receipt-window";
 
 type ConfettiPiece = {
   id: string;
@@ -237,24 +238,21 @@ export function BattleDisplay({
   const [celebrationSide, setCelebrationSide] = useState<CelebrationTarget>("center");
   const [celebrationTier, setCelebrationTier] = useState<ZapCelebrationTier>(DEFAULT_ZAP_CELEBRATION_TIER);
   const [celebrationAmount, setCelebrationAmount] = useState<number | undefined>(undefined);
-  const finalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : null;
-  const displayItems = finalItems ?? items;
+  const persistedFinalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : [];
+  const displayItems = useMemo(
+    () => mergeZapReceiptItems([...persistedFinalItems, ...items]),
+    [items, persistedFinalItems]
+  );
   const leftFeedItems = displayItems.filter((item) => item.side === "left").slice(0, FEED_ITEMS_PER_SIDE);
   const rightFeedItems = displayItems.filter((item) => item.side === "right").slice(0, FEED_ITEMS_PER_SIDE);
   const copy = COPY[locale];
   const showDemoControls = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEMO_ZAPS === "true";
 
-  const leftStats = useMemo(() => (
-    session.status === "ended" && session.finalResult ? session.finalResult.left : calculateStats(items, "left")
-  ), [items, session.finalResult, session.status]);
-  const rightStats = useMemo(() => (
-    session.status === "ended" && session.finalResult ? session.finalResult.right : calculateStats(items, "right")
-  ), [items, session.finalResult, session.status]);
+  const leftStats = useMemo(() => calculateStats(displayItems, "left"), [displayItems]);
+  const rightStats = useMemo(() => calculateStats(displayItems, "right"), [displayItems]);
   const total = leftStats.totalSats + rightStats.totalSats;
   const leftRatio = total > 0 ? Math.round((leftStats.totalSats / total) * 100) : 50;
-  const leader = session.status === "ended" && session.finalResult
-    ? session.finalResult.winner
-    : leftStats.totalSats === rightStats.totalSats
+  const leader = leftStats.totalSats === rightStats.totalSats
     ? "tied"
     : leftStats.totalSats > rightStats.totalSats
       ? "left"
@@ -342,7 +340,6 @@ export function BattleDisplay({
 
   useEffect(() => {
     if (!session.startsAt) return;
-    if (session.status === "ended" && session.finalResult) return;
     function addReceipts(receipts: ZapReceiptItem[]) {
       if (receipts.length === 0) return;
       const newReceipts: ZapReceiptItem[] = [];
@@ -366,11 +363,41 @@ export function BattleDisplay({
     }
 
     if (session.status === "ended") {
-      void fetchZapReceiptsFromServer({
-        sessionId: session.id,
-        since: session.startsAt
-      }).then(addReceipts).catch(() => undefined);
-      return;
+      session.finalResult?.receipts.forEach((item) => {
+        seenReceiptIdsRef.current.add(item.id);
+        latestReceiptCreatedAtRef.current = Math.max(latestReceiptCreatedAtRef.current, item.createdAt);
+      });
+      let cancelled = false;
+      let catchupRunning = false;
+      async function reconcileFinalReceipts() {
+        if (cancelled || catchupRunning || document.visibilityState === "hidden") return;
+        catchupRunning = true;
+        try {
+          const receipts = await fetchZapReceiptsFromServer({
+            sessionId: session.id,
+            since: session.startsAt ?? undefined
+          });
+          if (!cancelled) addReceipts(receipts);
+        } catch {
+          // Keep the persisted final result and retry during the recovery window.
+        } finally {
+          catchupRunning = false;
+        }
+      }
+      const recoveryUntil = receiptEventAcceptedUntil(session) ?? 0;
+      const intervalId = currentSeconds() <= recoveryUntil
+        ? window.setInterval(() => void reconcileFinalReceipts(), 30_000)
+        : undefined;
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "visible") void reconcileFinalReceipts();
+      };
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      void reconcileFinalReceipts();
+      return () => {
+        cancelled = true;
+        if (intervalId !== undefined) window.clearInterval(intervalId);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      };
     }
 
     const unsubscribe = subscribeToZapReceipts({
@@ -412,7 +439,15 @@ export function BattleDisplay({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       unsubscribe();
     };
-  }, [session]);
+  }, [
+    session.contestants.left.nostrPubkey,
+    session.contestants.right.nostrPubkey,
+    session.endsAt,
+    session.graceSeconds,
+    session.id,
+    session.startsAt,
+    session.status
+  ]);
 
   useEffect(() => {
     const stored = readBrowserStorage("zap-battle:locale", ["local"]);

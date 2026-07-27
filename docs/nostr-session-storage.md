@@ -134,8 +134,9 @@ Vercel is still useful, but not as a session DB:
 - health checks
 
 Realtime Zap receipt display remains browser-to-relay. A server-side catch-up endpoint
-queries the same relays every 10 seconds so receipt updates can recover when browser
-WebSocket access is blocked or interrupted.
+queries both the configured receipt relays and the relay targets included in Zap requests
+every 10 seconds so receipt updates can recover when browser WebSocket access is blocked
+or interrupted.
 
 ## Receipt Subscription
 
@@ -144,7 +145,9 @@ It uses the app API for periodic catch-up and final result reconciliation.
 
 Current matching logic:
 
-- Use session `startsAt` as the opening boundary and `endsAt + graceSeconds` as the closing boundary. The 30-second grace period is only a hidden receipt settlement window; it is not shown as extra battle time.
+- Use the signed Zap Request `created_at` with session `startsAt` as the opening boundary and `endsAt + graceSeconds` as the closing boundary. The 30-second grace period is hidden and is not shown as extra battle time.
+- Accept a signed Zap Receipt event for up to 24 hours after that closing boundary when its embedded signed Zap Request was created inside the battle window. This covers wallet settlement and receipt-publication delays without counting a Zap initiated after the battle.
+- Re-query receipts on the Final Result screen and merge newly found receipt IDs into the displayed result. A persisted final snapshot remains the fallback if relays are unavailable.
 - QR images are stable for each Battle ID and side. The callback adds `zap_live_starts_at` only while the session is live, so pre-Start payments can complete but do not count toward a run.
 - Subscribe with `#p` for the left/right contestant pubkeys.
 - Parse the receipt `description` tag as a signed `kind:9734` Zap request.

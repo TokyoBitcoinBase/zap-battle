@@ -1,7 +1,11 @@
 import { verifyEvent } from "nostr-tools/pure";
 import { SimplePool } from "nostr-tools/pool";
-import { relaysFromEnv } from "@/src/relays";
+import { receiptRelaysFromEnv } from "@/src/relays";
 import type { BattleSide, ZapBattleSession, ZapReceiptItem } from "@/src/types";
+import {
+  isZapRequestWithinBattle,
+  receiptEventAcceptedUntil
+} from "@/src/zap-receipt-window";
 
 type NostrEvent = {
   id: string;
@@ -109,10 +113,11 @@ function createZapReceiptFilter(session: ZapBattleSession, since: number) {
     session.contestants.left.nostrPubkey,
     session.contestants.right.nostrPubkey
   ].filter((pubkey): pubkey is string => Boolean(pubkey));
+  const receiptUntil = receiptEventAcceptedUntil(session);
   return {
     kinds: [9735],
     since,
-    ...(session.endsAt ? { until: session.endsAt + session.graceSeconds } : {}),
+    ...(receiptUntil ? { until: receiptUntil } : {}),
     "#p": contestantPubkeys,
     limit: 500
   };
@@ -147,8 +152,7 @@ function parseZapReceipt(receipt: NostrEvent, session: ZapBattleSession): Parsed
   const amountMsats = Number(getTag(zapRequest, "amount") || getTag(receipt, "amount") || 0);
   if (!Number.isFinite(amountMsats) || amountMsats <= 0) return null;
   const createdAt = zapRequest.created_at || receipt.created_at;
-  if (session.startsAt && createdAt < session.startsAt) return null;
-  if (session.endsAt && createdAt > session.endsAt + session.graceSeconds) return null;
+  if (!isZapRequestWithinBattle(session, createdAt)) return null;
 
   return {
     item: {
@@ -218,5 +222,9 @@ function senderNameFromMetadata(event: NostrEvent): string | null {
 }
 
 function readRelays(): string[] {
-  return relaysFromEnv(process.env.NEXT_PUBLIC_NOSTR_SESSION_RELAYS, process.env.NEXT_PUBLIC_NOSTR_RELAYS);
+  return receiptRelaysFromEnv(
+    process.env.NEXT_PUBLIC_NOSTR_SESSION_RELAYS,
+    process.env.NEXT_PUBLIC_NOSTR_RELAYS,
+    process.env.NEXT_PUBLIC_ZAP_REQUEST_RELAYS
+  );
 }

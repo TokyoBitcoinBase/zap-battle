@@ -21,6 +21,7 @@ https://zap-battle.tokyobitcoin.space
 - Anonymous signed Zap requests with `zap_live` and `zap_live_side` tags
 - Browser-side Nostr relay subscription for realtime Zap receipts
 - 10-second server-side catch-up query for missed or browser-blocked receipts
+- 24-hour delayed-receipt recovery for payments initiated during the battle
 - Final Result screen after `End Battle`
 - No app database: sessions/results are stored as Nostr `kind:30078` events
 - Temporary contestant Nostr profiles for entrants without Nostr accounts
@@ -162,11 +163,13 @@ wss://relay.damus.io
 wss://nos.lol
 ```
 
-Zap request relay tags use a smaller set to keep LNURL QR density lower:
+Zap request relay tags retain the same public fallback set so receiving wallets have
+multiple publication targets:
 
 ```text
 wss://yabu.me
 wss://relay.primal.net
+wss://relay.damus.io
 wss://nos.lol
 ```
 

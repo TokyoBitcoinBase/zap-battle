@@ -20,6 +20,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   const body = await request.json().catch(() => ({}));
   const endedAt = currentSeconds();
+  const battleEndedAt = session.endsAt
+    ? Math.min(session.endsAt, endedAt)
+    : endedAt;
   const incomingFinalResult = isRecord(body) ? body.finalResult : undefined;
   const finalResult = shouldKeepExistingFinalResult(session.finalResult, incomingFinalResult)
     ? session.finalResult
@@ -27,7 +30,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const next = normalizeSession({
     ...session,
     status: "ended" as const,
-    endsAt: endedAt,
+    endsAt: battleEndedAt,
     finalResult,
     updatedAt: nextSessionUpdatedAt(session.updatedAt)
   }, sessionId);
