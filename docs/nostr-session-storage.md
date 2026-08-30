@@ -156,3 +156,54 @@ Current matching logic:
 - Use the Zap request `amount` tag for the current MVP.
 
 When a matching receipt is added to the feed, the display page triggers the confetti/cracker animation and the optional sound effect.
+
+## Invoice Validation and Audit
+
+Before the LNURL callback returns a wallet invoice to the payer, the server validates
+the returned BOLT11 invoice against the exact serialized, signed `kind:9734` Zap Request:
+
+1. The invoice amount must exactly equal the requested millisatoshi amount.
+2. The invoice must contain one 32-byte `description_hash` tag.
+3. That tag must equal `SHA-256(JSON.stringify(zapRequest))` byte for byte.
+
+This prevents a recipient callback from substituting a different amount or returning
+an invoice that is not bound to the signed Zap Request. Invalid invoices are never
+returned to the payer.
+
+For each valid invoice, the service publishes a separate addressable audit event:
+
+```json
+{
+  "kind": 30078,
+  "content": "<NIP-44 ciphertext>",
+  "tags": [
+    ["d", "zap-battle-invoice-audit:<zap_request_id>:<invoice_hash>"],
+    ["type", "zap_battle_invoice_audit"],
+    ["client", "zap-battle"],
+    ["p", "<service_pubkey>"],
+    ["t", "zap-battle-audit:<session_id>"]
+  ]
+}
+```
+
+The encrypted content includes the exact invoice, exact Zap Request JSON and ID,
+payment hash, actual/expected description hashes, Lightning Address, callback URL,
+side, session timing, and validation result. A rejected invoice is also audited when
+relay publication is available. Raw invoices and Lightning Addresses are not placed
+in public event tags. Including both hashes in the addressable event key preserves
+different invoices returned for the same Zap Request. The admin response also includes
+the signed audit event ID as `auditEventId`.
+
+The audit is self-encrypted with NIP-44 using `SERVICE_PRIVATE_KEY`. Only the service
+can decrypt it, and the key must remain stable to read historical audits. Admins can
+retrieve records with:
+
+```bash
+curl -H "x-admin-token: <ADMIN_TOKEN>" \
+  https://zap-battle.example.com/api/zap-live/sessions/<session_id>/invoice-audits
+```
+
+Do not put the admin token in the query string. If every configured audit relay is
+temporarily unavailable, the failure is written to server logs using only the invoice
+hash and Zap Request ID. A valid invoice is still returned so an audit outage does not
+break the existing Zap flow.

@@ -19,6 +19,8 @@ https://zap-battle.tokyobitcoin.space
 - Admin Token gate for setup, save, start, end, and reset operations
 - LNURL Pay QR generation through Vercel API routes
 - Anonymous signed Zap requests with `zap_live` and `zap_live_side` tags
+- Returned BOLT11 amount and Zap Request `description_hash` validation
+- NIP-44-encrypted invoice/Zap Request audit events for incident investigation
 - Browser-side Nostr relay subscription for realtime Zap receipts
 - 10-second server-side catch-up query for missed or browser-blocked receipts
 - 24-hour delayed-receipt recovery for payments initiated during the battle
@@ -45,6 +47,7 @@ Browser
 
 Nostr relays
   session events
+  encrypted invoice audit events
   temporary profiles
   Zap receipts
 ```
@@ -58,6 +61,7 @@ Nostr relays
 /zap-battle/:battleId/display?admin=1&create=1  Explicit creation from the top page
 /zap-battle/admin/:battleId    Admin fallback page
 /api/zap-live/sessions         Admin-only saved Battle URL list
+/api/zap-live/sessions/:battleId/invoice-audits  Admin-only decrypted invoice audits
 /api/zap-live/*                API routes
 ```
 
@@ -69,6 +73,7 @@ token-gated top page explicitly creates a new Battle ID, then removes the one-ti
 
 ```bash
 pnpm install
+pnpm test
 pnpm dev
 ```
 
@@ -179,6 +184,9 @@ wss://nos.lol
 - Do not place service keys in WordPress, client-side JavaScript, or committed files.
 - Public display URLs are intentionally public.
 - Admin mutations require `ADMIN_TOKEN` in production.
+- Invoice audits contain the exact invoice and signed Zap Request, so they are NIP-44 encrypted to the service key before relay publication. Read them with the admin-only audit endpoint and the `x-admin-token` header; do not put the token in a URL.
+- Keep `SERVICE_PRIVATE_KEY` stable and backed up. Rotating or losing it makes earlier encrypted invoice audits unreadable.
+- A temporary outage of every audit relay is logged with the invoice hash and Zap Request ID but does not reject an otherwise valid invoice.
 - Contestant display names are public. Use nicknames or stage names only, unless the contestant has explicitly approved public display of their legal name.
 - Reset and URL deactivation only blank app-created temporary Nostr profiles when the same browser still has the temporary key.
 
