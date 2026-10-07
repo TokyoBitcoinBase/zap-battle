@@ -45,6 +45,27 @@ and fetch the latest `kind:30078` with:
 
 If multiple events are found, use the latest valid event from the trusted organizer/service pubkey.
 
+## Read Failures and Recovery
+
+The server waits for actual relay `EOSE` responses before treating an empty query
+as a missing session. A connection failure or timeout is not evidence that a Battle
+URL is invalid. If no session is found and any configured relay failed to complete
+the query, the API returns `503 session_relays_unavailable`; a completed empty query
+returns `404 not_configured`. A signed deactivation tombstone returns
+`410 session_deactivated`.
+
+Successfully read sessions and tombstones are cached in server memory as a fallback
+during transient relay failures. Older relay events cannot roll back a newer cached
+session or deactivation. This cache is disposable; Nostr remains the source of truth.
+Explicit session creation also fails during an uncached relay outage, so a retry
+cannot overwrite an existing session with an empty draft.
+
+The display retries reads after failures and missing-session responses. It keeps an
+already loaded scoreboard visible during transient read failures. Reads are scheduled
+five seconds after the previous request completes, avoiding overlapping relay queries.
+Only an explicit local deactivation stops polling; opening a public or existing
+operator URL never creates a session.
+
 ## Trust Model
 
 For production, the display page must not accept arbitrary session events from any pubkey.

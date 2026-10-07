@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchZapReceiptsOnce } from "@/src/nostr-zap-receipts";
-import { getSession } from "@/src/server/session-store";
+import { lookupSession } from "@/src/server/session-store";
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
@@ -8,10 +8,17 @@ type RouteContext = {
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const { sessionId } = await context.params;
-  const session = await getSession(sessionId);
-  if (!session) {
+  const lookup = await lookupSession(sessionId);
+  if (lookup.state === "unavailable") {
+    return noStoreJson({ error: "session_relays_unavailable" }, { status: 503 });
+  }
+  if (lookup.state === "deleted") {
+    return noStoreJson({ error: "session_deactivated" }, { status: 410 });
+  }
+  if (lookup.state === "missing") {
     return noStoreJson({ error: "not_configured" }, { status: 404 });
   }
+  const session = lookup.session;
   const requestedSince = Number(request.nextUrl.searchParams.get("since"));
   const since = Number.isFinite(requestedSince)
     ? Math.max(session.startsAt ?? 0, Math.floor(requestedSince))

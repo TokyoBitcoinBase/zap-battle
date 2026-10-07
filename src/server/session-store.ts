@@ -4,34 +4,75 @@ import { mockSession } from "@/src/mock-session";
 import { relaysFromEnv } from "@/src/relays";
 import { nextSessionUpdatedAt, normalizeSession } from "@/src/session-validation";
 import { hexToBytes, readServicePrivateKey } from "@/src/server/service-key";
+import { querySessionRelays } from "@/src/server/session-relay-query";
 import type { ZapBattleSession, ZapBattleSessionSummary } from "@/src/types";
 
 const GLOBAL_KEY = "__zapBattleSessions";
+const DELETED_KEY = "__zapBattleDeletedSessions";
 const SESSION_KIND = 30078;
 
 type SessionGlobal = typeof globalThis & {
   [GLOBAL_KEY]?: Map<string, ZapBattleSession>;
+  [DELETED_KEY]?: Map<string, number>;
 };
+
+function deletedSessions(): Map<string, number> {
+  const storeGlobal = globalThis as SessionGlobal;
+  return storeGlobal[DELETED_KEY] ??= new Map();
+}
+
+export class SessionStorageUnavailableError extends Error {
+  constructor() {
+    super("Could not read session data from the configured Nostr relays.");
+    this.name = "SessionStorageUnavailableError";
+  }
+}
 
 function sessions(): Map<string, ZapBattleSession> {
   const storeGlobal = globalThis as SessionGlobal;
   if (!storeGlobal[GLOBAL_KEY]) {
-    const initial = normalizeSession(mockSession, mockSession.id);
-    storeGlobal[GLOBAL_KEY] = new Map([[initial.id, initial]]);
+    storeGlobal[GLOBAL_KEY] = new Map();
+    if (!nostrSessionStorageEnabled()) {
+      const initial = normalizeSession(mockSession, mockSession.id);
+      storeGlobal[GLOBAL_KEY].set(initial.id, initial);
+    }
   }
   return storeGlobal[GLOBAL_KEY];
 }
 
 export async function getSession(sessionId: string): Promise<ZapBattleSession | null> {
+  const lookup = await lookupSession(sessionId);
+  if (lookup.state === "unavailable") throw new SessionStorageUnavailableError();
+  return lookup.state === "found" ? lookup.session : null;
+}
+
+export async function lookupSession(sessionId: string): Promise<NostrSessionLookup> {
   if (nostrSessionStorageEnabled()) {
     const lookup = await lookupNostrSession(sessionId);
-    if (lookup.state === "found") return lookup.session;
-    if (lookup.state === "deleted") {
-      sessions().delete(sessionId);
-      return null;
+    const cachedSession = sessions().get(sessionId);
+    const cachedDeletion = deletedSessions().get(sessionId);
+    const cachedUpdatedAt = cachedDeletion ?? cachedSession?.updatedAt ?? 0;
+    const fetchedUpdatedAt = lookup.state === "found"
+      ? lookup.session.updatedAt ?? 0
+      : lookup.state === "deleted" ? lookup.updatedAt : -1;
+    if (fetchedUpdatedAt >= cachedUpdatedAt && lookup.state === "found") {
+      sessions().set(sessionId, lookup.session);
+      deletedSessions().delete(sessionId);
+      return lookup;
     }
+    if (fetchedUpdatedAt >= cachedUpdatedAt && lookup.state === "deleted") {
+      sessions().delete(sessionId);
+      deletedSessions().set(sessionId, lookup.updatedAt);
+      return lookup;
+    }
+    if (cachedDeletion !== undefined) return { state: "deleted", updatedAt: cachedDeletion };
+    if (cachedSession) return { state: "found", session: cachedSession };
+    return lookup;
   }
-  return sessions().get(sessionId) ?? null;
+  const deletedAt = deletedSessions().get(sessionId);
+  if (deletedAt !== undefined) return { state: "deleted", updatedAt: deletedAt };
+  const session = sessions().get(sessionId);
+  return session ? { state: "found", session } : { state: "missing" };
 }
 
 export async function listSessions(): Promise<ZapBattleSessionSummary[]> {
@@ -47,16 +88,17 @@ export async function listSessions(): Promise<ZapBattleSessionSummary[]> {
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
+  const lookup = await lookupSession(sessionId);
+  if (lookup.state === "unavailable") throw new SessionStorageUnavailableError();
+  const previousUpdatedAt = lookup.state === "found"
+    ? lookup.session.updatedAt
+    : lookup.state === "deleted" ? lookup.updatedAt : undefined;
+  const deletedAt = nextSessionUpdatedAt(previousUpdatedAt);
   if (nostrSessionStorageEnabled()) {
-    const lookup = await lookupNostrSession(sessionId);
-    const previousUpdatedAt = lookup.state === "found"
-      ? lookup.session.updatedAt
-      : lookup.state === "deleted"
-        ? lookup.updatedAt
-        : undefined;
-    await publishNostrSessionDeletion(sessionId, nextSessionUpdatedAt(previousUpdatedAt));
+    await publishNostrSessionDeletion(sessionId, deletedAt);
   }
   sessions().delete(sessionId);
+  deletedSessions().set(sessionId, deletedAt);
 }
 
 export async function saveSession(session: ZapBattleSession): Promise<ZapBattleSession> {
@@ -64,21 +106,15 @@ export async function saveSession(session: ZapBattleSession): Promise<ZapBattleS
     await publishNostrSession(session);
   }
   sessions().set(session.id, session);
+  deletedSessions().delete(session.id);
   return session;
 }
 
 export async function ensureSession(sessionId: string): Promise<ZapBattleSession> {
-  let previousUpdatedAt: number | undefined;
-  if (nostrSessionStorageEnabled()) {
-    const lookup = await lookupNostrSession(sessionId);
-    if (lookup.state === "found") return lookup.session;
-    if (lookup.state === "deleted") {
-      sessions().delete(sessionId);
-      previousUpdatedAt = lookup.updatedAt;
-    }
-  }
-  const existing = sessions().get(sessionId);
-  if (existing) return existing;
+  const lookup = await lookupSession(sessionId);
+  if (lookup.state === "found") return lookup.session;
+  if (lookup.state === "unavailable") throw new SessionStorageUnavailableError();
+  const previousUpdatedAt = lookup.state === "deleted" ? lookup.updatedAt : undefined;
   const session = normalizeSession({
     ...mockSession,
     id: sessionId,
@@ -92,7 +128,7 @@ function nostrSessionStorageEnabled(): boolean {
   return Boolean(readServicePrivateKey() && readSessionRelays().length > 0);
 }
 
-type NostrSessionLookup =
+export type NostrSessionLookup =
   | { state: "found"; session: ZapBattleSession }
   | { state: "deleted"; updatedAt: number }
   | { state: "missing" }
@@ -104,12 +140,13 @@ async function lookupNostrSession(sessionId: string): Promise<NostrSessionLookup
   const pubkey = getPublicKey(privateKey);
   const pool = new SimplePool();
   try {
-    const events = await pool.querySync(readSessionRelays(), {
+    const { events, complete } = await querySessionRelays(pool, readSessionRelays(), {
       kinds: [SESSION_KIND],
       authors: [pubkey],
       "#d": [sessionDTag(sessionId)]
-    }, { maxWait: 1200 });
-    return latestSessionLookupFromEvents(events as NostrSessionEvent[], sessionId);
+    });
+    const lookup = latestSessionLookupFromEvents(events as NostrSessionEvent[], sessionId);
+    return lookup.state === "missing" && !complete ? { state: "unavailable" } : lookup;
   } catch {
     return { state: "unavailable" };
   } finally {
@@ -123,11 +160,12 @@ async function listNostrSessions(): Promise<ZapBattleSession[]> {
   const pubkey = getPublicKey(privateKey);
   const pool = new SimplePool();
   try {
-    const events = await pool.querySync(readSessionRelays(), {
+    const { events, complete } = await querySessionRelays(pool, readSessionRelays(), {
       kinds: [SESSION_KIND],
       authors: [pubkey],
       limit: 1000
-    }, { maxWait: 2200 });
+    });
+    if (!complete && events.length === 0) throw new SessionStorageUnavailableError();
     return latestSessionsFromEvents(events as NostrSessionEvent[]);
   } finally {
     pool.close(readSessionRelays());
@@ -145,8 +183,11 @@ type NostrSessionEvent = {
 };
 
 function latestSessionLookupFromEvents(events: NostrSessionEvent[], sessionId: string): NostrSessionLookup {
+  const pubkey = getPublicKey(readServicePrivateKey()!);
   const candidates = events
-    .filter((event) => event.kind === SESSION_KIND && verifyEvent(event))
+    .filter((event) => event.kind === SESSION_KIND &&
+      event.pubkey === pubkey &&
+      sessionIdFromEvent(event) === sessionId && verifyEvent(event))
     .map((event) => {
       try {
         const parsed = JSON.parse(event.content) as unknown;
@@ -167,9 +208,10 @@ function latestSessionLookupFromEvents(events: NostrSessionEvent[], sessionId: s
 }
 
 function latestSessionsFromEvents(events: NostrSessionEvent[]): ZapBattleSession[] {
+  const pubkey = getPublicKey(readServicePrivateKey()!);
   const candidatesBySession = new Map<string, Array<{ event: NostrSessionEvent; parsed: unknown }>>();
   events.forEach((event) => {
-    if (event.kind !== SESSION_KIND || !verifyEvent(event)) return;
+    if (event.kind !== SESSION_KIND || event.pubkey !== pubkey || !verifyEvent(event)) return;
     const sessionId = sessionIdFromEvent(event);
     if (!sessionId) return;
     let parsed: unknown;

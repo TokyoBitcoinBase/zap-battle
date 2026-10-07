@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/server/admin-auth";
-import { deleteSession, ensureSession, getSession, saveSession } from "@/src/server/session-store";
+import { deleteSession, ensureSession, lookupSession, saveSession } from "@/src/server/session-store";
 import { nextSessionUpdatedAt, normalizeSession } from "@/src/session-validation";
 
 type RouteContext = {
@@ -20,11 +20,17 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return persistenceUnavailable();
     }
   }
-  const session = await getSession(sessionId);
-  if (!session) {
+  const lookup = await lookupSession(sessionId);
+  if (lookup.state === "unavailable") {
+    return noStoreJson({ error: "session_relays_unavailable" }, { status: 503 });
+  }
+  if (lookup.state === "deleted") {
+    return noStoreJson({ error: "session_deactivated" }, { status: 410 });
+  }
+  if (lookup.state === "missing") {
     return noStoreJson({ error: "not_configured" }, { status: 404 });
   }
-  return noStoreJson({ session });
+  return noStoreJson({ session: lookup.session });
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
 import { BattleDisplay } from "@/src/ui/battle-display";
 import type { ZapBattleSession } from "@/src/types";
@@ -21,15 +22,19 @@ export function BattleDisplayLoader({
   const [session, setSession] = useState<ZapBattleSession | null>(null);
   const [error, setError] = useState("");
   const [notConfigured, setNotConfigured] = useState(false);
+  const [deactivated, setDeactivated] = useState(false);
   const [adminAuthRequired, setAdminAuthRequired] = useState(false);
   const [adminTokenDraft, setAdminTokenDraft] = useState("");
   const [deactivationStatus, setDeactivationStatus] = useState("");
   const [reloadNonce, setReloadNonce] = useState(0);
+  const createdSessions = useRef(new Set<string>());
 
   useEffect(() => {
-    if (adminAuthRequired || notConfigured) return;
+    if (adminAuthRequired || deactivationStatus) return;
     let cancelled = false;
-    let mayCreate = adminEnabled && createEnabled;
+    let mayCreate = adminEnabled && createEnabled && !createdSessions.current.has(sessionId);
+    let timer: number | undefined;
+    const controller = new AbortController();
     async function loadSession() {
       try {
         const adminToken = readStoredAdminToken(sessionId);
@@ -37,6 +42,7 @@ export function BattleDisplayLoader({
         const shouldCreate = mayCreate;
         const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(sessionId)}${shouldCreate ? "?create=1" : ""}`, {
           cache: "no-store",
+          signal: controller.signal,
           headers: adminEnabled ? adminHeaders(adminToken) : undefined
         });
         if (response.status === 401 && adminEnabled) {
@@ -47,36 +53,51 @@ export function BattleDisplayLoader({
           }
           return;
         }
-        if (response.status === 404) {
+        if (response.status === 404 || response.status === 410) {
           if (!cancelled) {
             setError("");
             setNotConfigured(true);
-            setSession(null);
+            setDeactivated((current) => response.status === 410 || current);
+            if (response.status === 410) setSession(null);
           }
           return;
+        }
+        if (response.status === 503) {
+          throw new Error("Battleデータを一時的に読み込めません。自動で再接続しています。");
         }
         if (!response.ok) throw new Error("セッションを読み込めませんでした。");
         const json = await response.json() as SessionResponse;
         mayCreate = false;
+        if (shouldCreate) createdSessions.current.add(sessionId);
         if (!cancelled) {
           if (shouldCreate) removeCreateQueryParam();
           setAdminAuthRequired(false);
           setDeactivationStatus("");
           setError("");
           setNotConfigured(false);
+          setDeactivated(false);
           setSession(json.session);
         }
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "セッションを読み込めませんでした。");
+      } finally {
+        if (!cancelled) timer = window.setTimeout(loadSession, 5000);
       }
     }
     void loadSession();
-    const timer = window.setInterval(loadSession, 5000);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      controller.abort();
+      window.clearTimeout(timer);
     };
-  }, [adminAuthRequired, adminEnabled, createEnabled, notConfigured, reloadNonce, sessionId]);
+  }, [adminAuthRequired, adminEnabled, createEnabled, deactivationStatus, reloadNonce, sessionId]);
+
+  function retrySession() {
+    setError("");
+    setNotConfigured(false);
+    setDeactivated(false);
+    setReloadNonce((current) => current + 1);
+  }
 
   function submitAdminToken(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -113,13 +134,18 @@ export function BattleDisplayLoader({
     );
   }
 
-  if (error) {
+  if (error && !session && !deactivated) {
     return (
       <main className="page">
         <section className="topbar">
           <div className="title">
             <h1>Zap Battle</h1>
-            <p>{error}</p>
+            <p role="status">{error}</p>
+          </div>
+          <div className="home-actions">
+            <button className="button primary" onClick={retrySession} type="button">
+              再読み込み
+            </button>
           </div>
         </section>
       </main>
@@ -133,14 +159,22 @@ export function BattleDisplayLoader({
           <section className="topbar">
             <div className="title">
               <h1>Zap Battle</h1>
-              <p>
-                {deactivationStatus || (adminEnabled
-                  ? "このBattle URLは無効です。再利用する場合はトップページの「新しいBattle URL」から作成してください。"
-                  : "Battle not configured. Open the operator display from the top page first.")}
+              <p role="status">
+                {deactivationStatus || (deactivated
+                  ? "このBattle URLは無効化されています。"
+                  : "Battleデータがまだ見つかりません。自動で再確認しています。")}
               </p>
-              {deactivationStatus && adminEnabled ? (
+              {(deactivationStatus || deactivated) && adminEnabled ? (
                 <p>再利用する場合はトップページの「新しいBattle URL」から作成してください。</p>
               ) : null}
+            </div>
+            <div className="home-actions">
+              {!deactivationStatus ? (
+                <button className="button primary" onClick={retrySession} type="button">
+                  再読み込み
+                </button>
+              ) : null}
+              <Link className="button" href="/">トップページへ</Link>
             </div>
           </section>
         </main>
@@ -166,6 +200,7 @@ export function BattleDisplayLoader({
         setDeactivationStatus(message);
         setSession(null);
         setNotConfigured(true);
+        setDeactivated(true);
       }}
       session={session}
     />
