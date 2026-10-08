@@ -1276,16 +1276,20 @@ select {
 }
 
 .final-card.left {
+  --final-card-accent: var(--cyan);
+  --final-card-glow: rgba(32, 212, 255, 0.12);
   border-top: 5px solid var(--cyan);
 }
 
 .final-card.right {
+  --final-card-accent: var(--pink);
+  --final-card-glow: rgba(255, 62, 136, 0.12);
   border-top: 5px solid var(--pink);
 }
 
 .final-card.winner {
-  border-color: rgba(255, 210, 56, 0.64);
-  box-shadow: 0 24px 60px rgba(255, 210, 56, 0.12), 0 24px 56px rgba(0, 0, 0, 0.34);
+  border-color: var(--final-card-accent);
+  box-shadow: 0 24px 60px var(--final-card-glow), 0 24px 56px rgba(0, 0, 0, 0.34);
 }
 
 .final-card h3 {
