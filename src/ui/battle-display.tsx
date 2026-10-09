@@ -5,6 +5,9 @@ import { isSpecialZap, normalizeSpecialZapThreshold, specialZapDurationMs } from
 import { SpecialZapCelebration } from "@/src/ui/special-zap-celebration";
 import { createConfetti, DEFAULT_ZAP_CELEBRATION_TIER, ZAP_CELEBRATION_TIERS, zapCelebrationTier, type CelebrationTarget, type ConfettiPiece, type ZapCelebrationTier } from "@/src/zap-celebration";
 import { ZapCelebration } from "@/src/ui/zap-celebration";
+import { playZapSound, playTimeUpSound, primeZapSound, playSoundEnabledCue } from "@/src/zap-audio";
+import { useBattleSound } from "@/src/ui/use-battle-sound";
+import { TIME_UP_DURATION_MS } from "@/src/time-up";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
@@ -29,7 +32,6 @@ type CelebrationQueueItem = {
 type Locale = "en" | "ja";
 
 const FEED_ITEMS_PER_SIDE = 40;
-const SOUND_ENABLED_STORAGE_KEY = "zap-battle:sound-enabled";
 
 const COPY = {
   en: {
@@ -145,7 +147,7 @@ export function BattleDisplay({
   session: ZapBattleSession;
 }) {
   const [items, setItems] = useState<ZapReceiptItem[]>([]);
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const { soundEnabled, setSoundEnabled } = useBattleSound();
   const [locale, setLocale] = useState<Locale>("en");
   const [adminOpen, setAdminOpen] = useState(false);
   const [utilityOpen, setUtilityOpen] = useState(false);
@@ -163,7 +165,7 @@ export function BattleDisplay({
   const previousStartsAtRef = useRef<number | null>(session.startsAt);
   const timeUpSessionRef = useRef<string | null>(null);
   const finalizedSessionRef = useRef<string | null>(null);
-  const finalSoundSessionRef = useRef<string | null>(session.status === "ended" ? `${session.id}:${session.startsAt ?? "ended"}` : null);
+  const previousLifecycleRef = useRef({ id: session.id, status: session.status });
   const soundEnabledRef = useRef(false);
   const celebrationTimerRef = useRef<number | undefined>(undefined);
   const celebrationQueueRef = useRef<CelebrationQueueItem[]>([]);
@@ -247,8 +249,7 @@ export function BattleDisplay({
       const endAt = startsAt + session.durationSeconds;
       if (currentSeconds() < endAt) return;
       timeUpSessionRef.current = timeUpKey;
-      enqueueCelebration("center", false);
-      if (soundEnabled) void playTimeUpSound();
+      enqueueCelebration("center", soundEnabledRef.current);
     };
     checkTimeUp();
     const intervalId = window.setInterval(checkTimeUp, 250);
@@ -256,12 +257,14 @@ export function BattleDisplay({
   }, [session.durationSeconds, session.id, session.startsAt, session.status, soundEnabled]);
 
   useEffect(() => {
-    if (session.status !== "ended" || !session.finalResult) return;
-    const finalSoundKey = `${session.id}:${session.startsAt ?? session.finalResult.capturedAt}`;
-    if (finalSoundSessionRef.current === finalSoundKey) return;
-    finalSoundSessionRef.current = finalSoundKey;
-    if (soundEnabled) void playTimeUpSound();
-  }, [session.finalResult, session.id, session.startsAt, session.status, soundEnabled]);
+    const previous = previousLifecycleRef.current;
+    previousLifecycleRef.current = { id: session.id, status: session.status };
+    if (session.status !== "ended" || previous.id !== session.id || previous.status === "ended") return;
+    const timeUpKey = `${session.id}:${session.startsAt ?? "not-started"}`;
+    if (timeUpSessionRef.current === timeUpKey) return;
+    timeUpSessionRef.current = timeUpKey;
+    enqueueCelebration("center", soundEnabledRef.current);
+  }, [session.id, session.startsAt, session.status]);
 
   useEffect(() => {
     if (!adminEnabled || session.status !== "live" || !session.startsAt) return;
@@ -393,7 +396,6 @@ export function BattleDisplay({
   useEffect(() => {
     const stored = readBrowserStorage("zap-battle:locale", ["local"]);
     if (stored === "ja" || stored === "en") setLocale(stored);
-    setSoundEnabled(readBrowserStorage(SOUND_ENABLED_STORAGE_KEY, ["local"]) === "true");
   }, []);
 
   useEffect(() => {
@@ -439,13 +441,15 @@ export function BattleDisplay({
   }
 
   function enqueueCelebration(side: CelebrationTarget, withSound: boolean, amountSats?: number) {
-    celebrationQueueRef.current.push({
+    const next: CelebrationQueueItem = {
       special: side !== "center" && isSpecialZap(amountSats, specialThresholdRef.current),
       amountSats,
       side,
       tier: amountSats ? zapCelebrationTier(amountSats) : DEFAULT_ZAP_CELEBRATION_TIER,
       withSound
-    });
+    };
+    if (side === "center") celebrationQueueRef.current.unshift(next);
+    else celebrationQueueRef.current.push(next);
     runNextCelebration();
   }
 
@@ -463,7 +467,10 @@ export function BattleDisplay({
     setSpecialCelebration(next.special);
     setConfetti(createConfetti(next.side, next.tier));
     setCelebrating(true);
-    if (next.withSound) void playZapSound(next.tier);
+    if (next.withSound && soundEnabledRef.current) {
+      if (next.side === "center") void playTimeUpSound();
+      else void playZapSound(next.tier);
+    }
 
     window.clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = window.setTimeout(() => {
@@ -473,7 +480,7 @@ export function BattleDisplay({
       if (celebrationQueueRef.current.length > 0) {
         celebrationTimerRef.current = window.setTimeout(runNextCelebration, 80);
       }
-    }, next.special && next.amountSats ? specialZapDurationMs(next.amountSats) : tier.durationMs);
+    }, next.side === "center" ? TIME_UP_DURATION_MS : next.special && next.amountSats ? specialZapDurationMs(next.amountSats) : tier.durationMs);
   }
 
   function toggleLocale() {
@@ -485,12 +492,9 @@ export function BattleDisplay({
   }
 
   function toggleSound() {
-    setSoundEnabled((current) => {
-      const next = !current;
-      writeBrowserStorage(SOUND_ENABLED_STORAGE_KEY, String(next), ["local"]);
-      if (next) void primeZapSound().then(() => playSoundEnabledCue());
-      return next;
-    });
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    if (next) void primeZapSound().then(ready => { if (ready) playSoundEnabledCue(); });
   }
 
   async function startBattle() {
@@ -551,7 +555,7 @@ export function BattleDisplay({
   return (
     <main className={`battle-shell ${session.theme ? "battle-themed" : ""}`} style={session.theme ? themeStyle(session.theme) : undefined}>
       {celebrating && specialCelebration && celebrationAmount && celebrationSide !== "center" ? <SpecialZapCelebration key={celebrationNonce} amount={celebrationAmount} side={celebrationSide} recipient={displayContestantName(session.contestants[celebrationSide])} locale={locale} /> : null}
-      {celebrating && !specialCelebration ? <ZapCelebration key={celebrationNonce} side={celebrationSide} tier={celebrationTier} amount={celebrationAmount} confetti={confetti} /> : null}
+      {celebrating && !specialCelebration ? <ZapCelebration key={celebrationNonce} side={celebrationSide} tier={celebrationTier} amount={celebrationAmount} confetti={confetti} locale={locale} /> : null}
 
       <header className="battle-top">
         <div className="brand">
@@ -1092,148 +1096,6 @@ function globalAdminTokenStorageKey(): string {
 }
 
 
-async function playZapSound(tierName: ZapCelebrationTier = DEFAULT_ZAP_CELEBRATION_TIER) {
-  const context = getAudioContext();
-  if (!context) return;
-  await resumeAudioContext(context);
-  const now = context.currentTime;
-  const output = context.createGain();
-  const tierSettings = zapSoundSettings(tierName);
-  output.gain.setValueAtTime(0.0001, now);
-  output.gain.exponentialRampToValueAtTime(tierSettings.volume, now + 0.02);
-  output.gain.exponentialRampToValueAtTime(0.0001, now + tierSettings.tail);
-  output.connect(context.destination);
-
-  tierSettings.notes.forEach((frequency, index) => {
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const startAt = now + index * tierSettings.spacing;
-    oscillator.type = tierSettings.wave;
-    oscillator.frequency.setValueAtTime(frequency, startAt);
-    if (tierName === "thousand" || tierName === "tenThousand") {
-      oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.08, startAt + tierSettings.noteLength * 0.55);
-    }
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(tierSettings.noteGain, startAt + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + tierSettings.noteLength);
-    oscillator.connect(gain);
-    gain.connect(output);
-    oscillator.start(startAt);
-    oscillator.stop(startAt + tierSettings.noteLength + 0.04);
-  });
-
-  if (tierName === "tenThousand") {
-    const bass = context.createOscillator();
-    const bassGain = context.createGain();
-    bass.type = "sawtooth";
-    bass.frequency.setValueAtTime(92, now);
-    bass.frequency.exponentialRampToValueAtTime(46, now + 0.42);
-    bassGain.gain.setValueAtTime(0.0001, now);
-    bassGain.gain.exponentialRampToValueAtTime(0.2, now + 0.025);
-    bassGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
-    bass.connect(bassGain);
-    bassGain.connect(output);
-    bass.start(now);
-    bass.stop(now + 0.52);
-  }
-}
-
-function zapSoundSettings(tierName: ZapCelebrationTier): {
-  noteGain: number;
-  noteLength: number;
-  notes: number[];
-  spacing: number;
-  tail: number;
-  volume: number;
-  wave: OscillatorType;
-} {
-  if (tierName === "one") {
-    return { noteGain: 0.09, noteLength: 0.12, notes: [660], spacing: 0.05, tail: 0.22, volume: 0.14, wave: "sine" };
-  }
-  if (tierName === "ten") {
-    return { noteGain: 0.12, noteLength: 0.16, notes: [587, 880], spacing: 0.07, tail: 0.34, volume: 0.18, wave: "triangle" };
-  }
-  if (tierName === "hundred") {
-    return { noteGain: 0.16, noteLength: 0.22, notes: [520, 784, 1046], spacing: 0.055, tail: 0.42, volume: 0.24, wave: "square" };
-  }
-  if (tierName === "thousand") {
-    return { noteGain: 0.18, noteLength: 0.28, notes: [392, 588, 784, 1176, 1568], spacing: 0.055, tail: 0.68, volume: 0.28, wave: "sawtooth" };
-  }
-  return { noteGain: 0.2, noteLength: 0.34, notes: [262, 392, 523, 784, 1046, 1568, 2093], spacing: 0.045, tail: 0.92, volume: 0.32, wave: "sawtooth" };
-}
-
-async function playTimeUpSound() {
-  const context = getAudioContext();
-  if (!context) return;
-  await resumeAudioContext(context);
-  const now = context.currentTime;
-  const output = context.createGain();
-  output.gain.setValueAtTime(0.0001, now);
-  output.gain.exponentialRampToValueAtTime(0.28, now + 0.03);
-  output.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
-  output.connect(context.destination);
-
-  [880, 660, 440, 220].forEach((frequency, index) => {
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const startAt = now + index * 0.12;
-    oscillator.type = "sawtooth";
-    oscillator.frequency.setValueAtTime(frequency, startAt);
-    gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(0.14, startAt + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.16);
-    oscillator.connect(gain);
-    gain.connect(output);
-    oscillator.start(startAt);
-    oscillator.stop(startAt + 0.18);
-  });
-
-}
-
-async function primeZapSound() {
-  const context = getAudioContext();
-  if (!context) return;
-  await resumeAudioContext(context);
-}
-
-async function resumeAudioContext(context: AudioContext): Promise<void> {
-  if (context.state === "suspended") await context.resume().catch(() => undefined);
-}
-
-function playSoundEnabledCue() {
-  const context = getAudioContext();
-  if (!context) return;
-  const now = context.currentTime;
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(660, now);
-  oscillator.frequency.exponentialRampToValueAtTime(880, now + 0.12);
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
-  oscillator.connect(gain);
-  gain.connect(context.destination);
-  oscillator.start(now);
-  oscillator.stop(now + 0.2);
-}
-
-let sharedAudioContext: AudioContext | null = null;
-
-function getAudioContext(): AudioContext | null {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return null;
-  if (!sharedAudioContext || sharedAudioContext.state === "closed") {
-    sharedAudioContext = new AudioContextClass();
-  }
-  return sharedAudioContext;
-}
-
-declare global {
-  interface Window {
-    webkitAudioContext?: typeof AudioContext;
-  }
-}
 
 function ContestantAvatar({ contestant }: { contestant: Contestant }) {
   const url = safeImageUrl(contestant.profileImageUrl);

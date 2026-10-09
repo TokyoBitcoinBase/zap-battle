@@ -1,0 +1,4 @@
+export const TIME_UP_ENTER_MS = 350;
+export const TIME_UP_HOLD_MS = 6000;
+export const TIME_UP_FADE_MS = 800;
+export const TIME_UP_DURATION_MS = TIME_UP_ENTER_MS + TIME_UP_HOLD_MS + TIME_UP_FADE_MS;

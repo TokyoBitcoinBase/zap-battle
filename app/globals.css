@@ -1889,3 +1889,16 @@ select {
 .special-zap-confetti i:nth-child(3n) { border-radius: 50%; height: var(--confetti-size); }
 .special-zap-content { z-index: 1; }
 @keyframes special-confetti-fall { 0% { opacity: 0; transform: translate3d(0,-20px,0) rotate(0); } 8%, 80% { opacity: 1; } 100% { opacity: 0; transform: translate3d(var(--confetti-drift),calc(100vh + 64px),0) rotate(var(--confetti-rotation)); } }
+
+.time-up-celebration { position: fixed; inset: 0; z-index: 35; overflow: hidden; pointer-events: none; color: var(--timeup-white); background: radial-gradient(ellipse at center, var(--timeup-halo), transparent 65%), var(--timeup-night); animation: special-enter var(--timeup-enter) ease-out both, special-exit var(--timeup-fade) var(--timeup-fade-delay) ease-out forwards; }
+.time-up-celebration::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, var(--timeup-stripe) 0 2px, transparent 2px 32px); }
+.time-up-content { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: clamp(12px, 3vh, 36px); padding: 24px; text-align: center; }
+.time-up-label { margin: 0; font: 1000 clamp(36px, 10vw, 150px)/1.1 Arial, sans-serif; letter-spacing: -.03em; color: var(--timeup-red); text-shadow: 0 0 40px var(--timeup-halo); animation: timeup-impact var(--timeup-enter) ease-out both; }
+.time-up-clock { font: 900 min(18vw, 28vh, 240px)/1.1 "SFMono-Regular", Consolas, monospace; letter-spacing: -.08em; font-variant-numeric: tabular-nums; }
+.time-up-caption { margin: 0; font: 800 clamp(14px, 2.5vw, 32px)/1.5 Arial, "Hiragino Sans", sans-serif; letter-spacing: .08em; color: var(--timeup-red); }
+.time-up-line { position: absolute; left: 0; width: 100%; height: 8px; background: var(--timeup-red); box-shadow: 0 0 30px var(--timeup-halo); animation: timeup-line var(--timeup-enter) ease-out both; }
+.time-up-line.top { top: 15%; }
+.time-up-line.bottom { bottom: 15%; }
+@keyframes timeup-impact { from { transform: scale(1.18); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes timeup-line { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .time-up-celebration, .time-up-celebration * { animation: none !important; } }

@@ -18,3 +18,10 @@
   --special-light: #ffda6580;
   --special-line: #ffda6533;
 }
+:root {
+  --timeup-night: #140812;
+  --timeup-red: #ff6a70;
+  --timeup-white: #fff8ef;
+  --timeup-halo: #9e223766;
+  --timeup-stripe: #ff6a7014;
+}
