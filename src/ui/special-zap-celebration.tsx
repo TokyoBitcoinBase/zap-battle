@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState, type CSSProperties } from "react";
-import { specialZapDigits, specialZapDurationMs, specialZapRevealMs } from "@/src/special-zap";
+import { SPECIAL_ZAP_FADE_MS, SPECIAL_ZAP_HOLD_MS, specialZapDigits, specialZapRevealMs } from "@/src/special-zap";
+
+import { CONFETTI_COLORS } from "@/src/zap-celebration";
 
 export function SpecialZapCelebration({ amount, recipient, side, locale = "en" }: {
   amount: number; recipient: string; side: "left" | "right"; locale?: "en" | "ja";
@@ -20,10 +22,18 @@ export function SpecialZapCelebration({ amount, recipient, side, locale = "en" }
   }, [amount]);
   const digits = specialZapDigits(amount, elapsed);
   const settled = digits.every(digit => digit.settled);
-  return <div className={`special-zap ${side} ${settled ? "settled" : "counting"}`} style={{ "--special-duration": `${specialZapDurationMs(amount)}ms`, "--special-digit-size": `min(17vw, ${Math.floor(100 / digits.length)}vw, 18vh, 160px)` } as CSSProperties} aria-hidden="true">
+  return <div className={`special-zap ${side} ${settled ? "settled" : "counting"}`} style={{ "--special-fade-delay": `${specialZapRevealMs(amount) + SPECIAL_ZAP_HOLD_MS}ms`, "--special-fade-duration": `${SPECIAL_ZAP_FADE_MS}ms`, "--special-digit-size": `min(17vw, ${Math.floor(100 / digits.length)}vw, 18vh, 160px)` } as CSSProperties} aria-hidden="true">
     <div className="special-zap-rays" />
     <div className="special-zap-ring" />
-    <div className="special-zap-sparks">{Array.from({ length: 48 }, (_, index) => <i key={index} style={{ "--spark-angle": `${index * 137.5}deg`, "--spark-delay": `${index % 8 * 70}ms`, "--spark-distance": `${24 + index % 7 * 5}vmin` } as CSSProperties} />)}</div>
+    <div className="special-zap-sparks">{Array.from({ length: 48 }, (_, index) => <i key={index} style={{ "--spark-color": CONFETTI_COLORS[index % CONFETTI_COLORS.length], "--spark-angle": `${index * 137.5}deg`, "--spark-delay": `${index % 8 * 70}ms`, "--spark-distance": `${24 + index % 7 * 5}vmin` } as CSSProperties} />)}</div>
+    <div className="special-zap-confetti">{Array.from({ length: 96 }, (_, index) => <i key={index} style={{
+      "--confetti-color": CONFETTI_COLORS[index % CONFETTI_COLORS.length],
+      "--confetti-x": `${(index * 37) % 100}%`,
+      "--confetti-drift": `${(index % 9 - 4) * 4}vw`,
+      "--confetti-delay": `${specialZapRevealMs(amount) + (index * 43 % 29) * 53}ms`,
+      "--confetti-size": `${8 + (index * 7 % 5) * 2}px`,
+      "--confetti-rotation": `${(index % 2 ? 1 : -1) * (360 + index % 5 * 180)}deg`
+    } as CSSProperties} />)}</div>
     <div className="special-zap-content">
       <p className="special-zap-label">JACKPOT ZAP</p>
       <p className="special-zap-recipient">{locale === "ja" ? "受け取り" : "FOR"} <strong>{recipient}</strong></p>

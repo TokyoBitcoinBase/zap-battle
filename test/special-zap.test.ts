@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeSession } from "../src/session-validation";
-import { isSpecialZap, normalizeSpecialZapThreshold, specialZapDigits, specialZapDurationMs, specialZapRevealMs } from "../src/special-zap";
+import { SPECIAL_ZAP_HOLD_MS, SPECIAL_ZAP_FADE_MS, isSpecialZap, normalizeSpecialZapThreshold, specialZapDigits, specialZapDurationMs, specialZapRevealMs } from "../src/special-zap";
 
 test("special Zap threshold is inclusive and checks an individual amount", () => {
   assert.equal(isSpecialZap(99_999, 100_000), false);
@@ -22,7 +22,9 @@ test("digits settle from units to the highest place and end at the exact amount"
     const digits = specialZapDigits(amount, specialZapRevealMs(amount));
     assert.equal(digits.map(d => d.digit).join(""), String(amount));
     assert.equal(digits.every(d => d.settled), true);
-    assert.ok(specialZapDurationMs(amount) > specialZapRevealMs(amount));
+    assert.equal(specialZapDurationMs(amount) - specialZapRevealMs(amount), SPECIAL_ZAP_HOLD_MS + SPECIAL_ZAP_FADE_MS);
+    assert.equal(SPECIAL_ZAP_HOLD_MS, 6000);
+    assert.equal(SPECIAL_ZAP_FADE_MS, 800);
   }
 });
 

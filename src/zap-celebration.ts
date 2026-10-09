@@ -12,7 +12,7 @@ export type ConfettiPiece = {
 
 export type CelebrationTarget = BattleSide | "center";
 export type ZapCelebrationTier = "one" | "ten" | "hundred" | "thousand" | "tenThousand";
-const CONFETTI_COLORS = ["#ffd238", "#20d4ff", "#ff3e88", "#20f0b0", "#ffffff", "#ff8a1f"];
+export const CONFETTI_COLORS = ["#ffd238", "#20d4ff", "#ff3e88", "#20f0b0", "#ffffff", "#ff8a1f"];
 export const DEFAULT_ZAP_CELEBRATION_TIER: ZapCelebrationTier = "hundred";
 export const ZAP_CELEBRATION_TIERS = {
   one: {
