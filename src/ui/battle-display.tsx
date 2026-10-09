@@ -1,5 +1,6 @@
 "use client";
 
+import { themeStyle } from "@/src/battle-theme";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
@@ -605,7 +606,7 @@ export function BattleDisplay({
   }
 
   return (
-    <main className="battle-shell">
+    <main className={`battle-shell ${session.theme ? "battle-themed" : ""}`} style={session.theme ? themeStyle(session.theme) : undefined}>
       {celebrating ? (
         <div className={`celebration ${celebrationSide} ${ZAP_CELEBRATION_TIERS[celebrationTier].className}`} aria-hidden="true" key={celebrationNonce}>
           <div className="zap-flash" />

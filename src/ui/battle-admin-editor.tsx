@@ -1,5 +1,6 @@
 "use client";
 
+import { BattleThemeEditor } from "@/src/ui/battle-theme-editor";
 import Link from "next/link";
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { verifyEvent } from "nostr-tools/pure";
@@ -208,6 +209,7 @@ export function BattleAdminEditor({
   const [session, setSession] = useState<ZapBattleSession>({ ...DEFAULT_SESSION, id: sessionId });
   const [durationDraft, setDurationDraft] = useState(() => durationInputParts(DEFAULT_SESSION.durationSeconds));
   const [loading, setLoading] = useState(true);
+  const [imageUploading, setImageUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [iframeCopied, setIframeCopied] = useState(false);
@@ -571,7 +573,7 @@ export function BattleAdminEditor({
           onCleanupTemporaryProfile={() => void cleanupInstantContestant("left")}
           onLoadNostrProfile={() => void loadNostrProfile("left")}
           profileLoading={profileLoadingSide === "left"}
-          working={saving}
+          working={saving || imageUploading}
         />
         <ContestantForm
           copy={copy}
@@ -581,7 +583,7 @@ export function BattleAdminEditor({
           onCleanupTemporaryProfile={() => void cleanupInstantContestant("right")}
           onLoadNostrProfile={() => void loadNostrProfile("right")}
           profileLoading={profileLoadingSide === "right"}
-          working={saving}
+          working={saving || imageUploading}
         />
       </section>
 
@@ -599,6 +601,8 @@ export function BattleAdminEditor({
         </section>
       ) : null}
 
+      <BattleThemeEditor session={session} onChange={setSession} adminToken={adminToken} disabled={saving || loading} locale={locale} onBusyChange={setImageUploading} />
+
       <section className="admin-actions">
         <button
           className="button primary"
@@ -608,11 +612,11 @@ export function BattleAdminEditor({
             shouldCreateMissingTemporaryProfiles ? copy.savedWithTempProfiles : copy.saved,
             { createMissingTemporaryProfiles: shouldCreateMissingTemporaryProfiles }
           )}
-          disabled={saving}
+          disabled={saving || imageUploading}
         >
           {saving ? copy.working : shouldCreateMissingTemporaryProfiles ? copy.saveWithTempProfiles : copy.save}
         </button>
-        <button className="button gold" type="button" onClick={() => void clearResults()} disabled={saving}>
+        <button className="button gold" type="button" onClick={() => void clearResults()} disabled={saving || imageUploading}>
           {copy.clearResults}
         </button>
         <Link className="button" href={displayUrl} rel="noopener noreferrer" target="_blank">
@@ -622,10 +626,10 @@ export function BattleAdminEditor({
           {iframeCopied ? copy.copied : copy.copyIframe}
         </button>
         <div className="admin-danger-actions">
-          <button className="button danger" type="button" onClick={() => void resetBattle()} disabled={saving}>
+          <button className="button danger" type="button" onClick={() => void resetBattle()} disabled={saving || imageUploading}>
             {copy.resetAll}
           </button>
-          <button className="button danger" type="button" onClick={() => void deleteBattleSession()} disabled={saving}>
+          <button className="button danger" type="button" onClick={() => void deleteBattleSession()} disabled={saving || imageUploading}>
             {copy.deleteUrlData}
           </button>
         </div>

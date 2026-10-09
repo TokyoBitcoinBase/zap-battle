@@ -1771,3 +1771,59 @@ select {
     width: 100%;
   }
 }
+
+/* Per-battle theme. Legacy sessions retain the original display. */
+.battle-themed, .theme-preview {
+  color: var(--text);
+  font-family: var(--battle-font);
+  background: linear-gradient(var(--theme-overlay), var(--theme-overlay)), var(--theme-image) center / cover, var(--bg);
+}
+.battle-themed .side.left, .battle-themed .side.right { background: transparent; }
+.battle-themed .battle-top { background: var(--panel); }
+.battle-themed .player-head h2, .battle-themed .score-mini, .battle-themed .score-value { font-family: inherit; }
+.battle-themed .side.left { --side-color: var(--cyan); }
+.battle-themed .side.right { --side-color: var(--pink); }
+.theme-editor { margin-top: var(--theme-space); }
+.theme-editor h2 { font-size: var(--theme-heading); }
+.theme-note { color: var(--muted); font-size: var(--theme-small); line-height: 1.6; }
+.theme-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.theme-colors, .theme-uploads { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--theme-space); margin-bottom: var(--theme-space); }
+.theme-colors label { display: grid; gap: 8px; font-size: var(--theme-small); }
+.theme-colors input[type=color] { width: 100%; height: 44px; padding: 4px; cursor: pointer; }
+.theme-colors code { color: var(--muted); }
+.theme-editor input[type=file] { max-width: 100%; font-size: var(--theme-small); }
+.theme-editor select { width: 100%; padding: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: var(--theme-radius); }
+.theme-editor :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.theme-preview { border-radius: var(--theme-radius); margin-top: var(--theme-space); padding: 24px; border: 1px solid var(--line); }
+.theme-preview-title { display: block; color: var(--gold); font-size: 24px; text-align: center; overflow-wrap: anywhere; }
+.theme-preview-players { display: grid; grid-template-columns: 1fr 1fr; gap: var(--theme-space); margin-top: 24px; }
+.theme-preview-players > div { display: grid; gap: 12px; min-width: 0; border-top: 3px solid currentColor; padding-top: 12px; overflow-wrap: anywhere; }
+.theme-preview .left { color: var(--cyan); }
+.theme-preview .right { color: var(--pink); }
+.theme-preview img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.theme-preview-players strong { font-size: clamp(20px, 4vw, 40px); font-variant-numeric: tabular-nums; }
+.theme-preview small, .theme-preview p { font-size: var(--theme-small); }
+@media (max-width: 480px) { .theme-preview { padding: 16px; } .theme-colors { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.battle-themed .player-head h2 { color: var(--side-color); }
+.battle-themed .feed-dock, .battle-themed .admin-modal { background: var(--panel); }
+.battle-themed .feed-lane.left { background: color-mix(in srgb, var(--cyan) 8%, transparent); }
+.battle-themed .feed-lane.right { background: color-mix(in srgb, var(--pink) 8%, transparent); }
+.battle-themed .timer { font-family: var(--battle-font); }
+.theme-preview-players strong { color: var(--gold); }
+.battle-themed .timer-badge strong { font-family: var(--battle-font); }
+.theme-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr); gap: 0 24px; }
+.theme-editor > h2, .theme-editor > .theme-note, .theme-editor > [role=status] { grid-column: 1 / -1; }
+.theme-editor .theme-preview { align-self: start; position: sticky; top: 96px; margin-top: 0; }
+.theme-editor .theme-colors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.theme-colors input[type=color] { border: 1px solid var(--line); border-radius: var(--theme-radius); background: var(--bg); }
+.theme-editor .theme-uploads { grid-template-columns: 1fr; }
+.theme-editor input[type=range] { accent-color: var(--gold); }
+@media (max-width: 760px) {
+  .theme-editor { grid-template-columns: minmax(0, 1fr); }
+  .theme-editor .theme-preview { grid-row: 3; position: static; margin-bottom: 24px; }
+  .theme-editor .theme-colors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.battle-themed .balance { background: var(--pink); }
+.battle-themed .balance span { background: var(--cyan); box-shadow: none; }
+.battle-themed .timer-badge { background: var(--panel); border-color: var(--gold); }
+.battle-themed .side .qr-frame { border-color: color-mix(in srgb, var(--side-color) 15%, white); box-shadow: 0 12px 32px color-mix(in srgb, var(--side-color) 25%, transparent); }

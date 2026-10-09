@@ -1,3 +1,4 @@
+import type { BattleTheme } from "@/src/battle-theme";
 export type BattleSide = "left" | "right";
 
 export type Contestant = {
@@ -12,6 +13,7 @@ export type Contestant = {
 export type ZapBattleSession = {
   id: string;
   title: string;
+  theme?: BattleTheme;
   status: "draft" | "live" | "paused" | "ended";
   startsAt: number | null;
   endsAt: number | null;
