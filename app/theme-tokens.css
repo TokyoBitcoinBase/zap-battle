@@ -4,3 +4,17 @@
   --theme-small: 13px;
   --theme-heading: 20px;
 }
+:root {
+  --special-gold: #ffda65;
+  --special-white: #fff7db;
+  --special-night: #080b16;
+  --special-radius: 12px;
+  --special-glow: 0 0 32px #ffbd4266;
+}
+:root {
+  --special-veil: #080b16fa;
+  --special-halo: #78531577;
+  --special-ray: #ffda650d;
+  --special-light: #ffda6580;
+  --special-line: #ffda6533;
+}

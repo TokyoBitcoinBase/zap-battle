@@ -1,5 +1,6 @@
 "use client";
 
+import { BattleZapSettings } from "@/src/ui/battle-zap-settings";
 import { BattleThemeEditor } from "@/src/ui/battle-theme-editor";
 import Link from "next/link";
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
@@ -209,6 +210,7 @@ export function BattleAdminEditor({
   const [session, setSession] = useState<ZapBattleSession>({ ...DEFAULT_SESSION, id: sessionId });
   const [durationDraft, setDurationDraft] = useState(() => durationInputParts(DEFAULT_SESSION.durationSeconds));
   const [loading, setLoading] = useState(true);
+  const [zapSettingsValid, setZapSettingsValid] = useState(true);
   const [imageUploading, setImageUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
@@ -601,6 +603,8 @@ export function BattleAdminEditor({
         </section>
       ) : null}
 
+      <BattleZapSettings session={session} onChange={setSession} disabled={saving || loading || imageUploading} locale={locale} onValidChange={setZapSettingsValid} />
+
       <BattleThemeEditor session={session} onChange={setSession} adminToken={adminToken} disabled={saving || loading} locale={locale} onBusyChange={setImageUploading} />
 
       <section className="admin-actions">
@@ -612,11 +616,11 @@ export function BattleAdminEditor({
             shouldCreateMissingTemporaryProfiles ? copy.savedWithTempProfiles : copy.saved,
             { createMissingTemporaryProfiles: shouldCreateMissingTemporaryProfiles }
           )}
-          disabled={saving || imageUploading}
+          disabled={saving || imageUploading || !zapSettingsValid}
         >
           {saving ? copy.working : shouldCreateMissingTemporaryProfiles ? copy.saveWithTempProfiles : copy.save}
         </button>
-        <button className="button gold" type="button" onClick={() => void clearResults()} disabled={saving || imageUploading}>
+        <button className="button gold" type="button" onClick={() => void clearResults()} disabled={saving || imageUploading || !zapSettingsValid}>
           {copy.clearResults}
         </button>
         <Link className="button" href={displayUrl} rel="noopener noreferrer" target="_blank">
@@ -626,10 +630,10 @@ export function BattleAdminEditor({
           {iframeCopied ? copy.copied : copy.copyIframe}
         </button>
         <div className="admin-danger-actions">
-          <button className="button danger" type="button" onClick={() => void resetBattle()} disabled={saving || imageUploading}>
+          <button className="button danger" type="button" onClick={() => void resetBattle()} disabled={saving || imageUploading || !zapSettingsValid}>
             {copy.resetAll}
           </button>
-          <button className="button danger" type="button" onClick={() => void deleteBattleSession()} disabled={saving || imageUploading}>
+          <button className="button danger" type="button" onClick={() => void deleteBattleSession()} disabled={saving || imageUploading || !zapSettingsValid}>
             {copy.deleteUrlData}
           </button>
         </div>

@@ -14,6 +14,7 @@ export type ZapBattleSession = {
   id: string;
   title: string;
   theme?: BattleTheme;
+  specialZapThresholdSats?: number | null;
   status: "draft" | "live" | "paused" | "ended";
   startsAt: number | null;
   endsAt: number | null;

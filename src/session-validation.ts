@@ -1,3 +1,4 @@
+import { normalizeSpecialZapThreshold } from "@/src/special-zap";
 import { normalizeTheme } from "@/src/battle-theme";
 import { normalizeNostrPubkey } from "@/src/nostr-pubkey";
 import type { BattleSide, Contestant, ZapBattleFinalResult, ZapBattleSession, ZapReceiptItem } from "@/src/types";
@@ -19,6 +20,7 @@ export function normalizeSession(input: unknown, fallbackId: string): ZapBattleS
     id: readString(value.id, fallbackId).slice(0, 96) || fallbackId,
     title,
     theme: value.theme ? normalizeTheme(value.theme) : undefined,
+    specialZapThresholdSats: normalizeSpecialZapThreshold(value.specialZapThresholdSats),
     status,
     startsAt,
     endsAt,

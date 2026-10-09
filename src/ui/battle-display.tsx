@@ -1,6 +1,10 @@
 "use client";
 
 import { safeImageUrl, themeStyle } from "@/src/battle-theme";
+import { isSpecialZap, normalizeSpecialZapThreshold, specialZapDurationMs } from "@/src/special-zap";
+import { SpecialZapCelebration } from "@/src/ui/special-zap-celebration";
+import { createConfetti, DEFAULT_ZAP_CELEBRATION_TIER, ZAP_CELEBRATION_TIERS, zapCelebrationTier, type CelebrationTarget, type ConfettiPiece, type ZapCelebrationTier } from "@/src/zap-celebration";
+import { ZapCelebration } from "@/src/ui/zap-celebration";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
@@ -14,20 +18,8 @@ import type { BattleSide, Contestant, ZapBattleSession, ZapReceiptItem } from "@
 import { BattleAdminEditor } from "@/src/ui/battle-admin-editor";
 import { receiptEventAcceptedUntil } from "@/src/zap-receipt-window";
 
-type ConfettiPiece = {
-  id: string;
-  x: string;
-  y: string;
-  dx: string;
-  dy: string;
-  r: string;
-  color: string;
-  size: string;
-};
-
-type CelebrationTarget = BattleSide | "center";
-type ZapCelebrationTier = "one" | "ten" | "hundred" | "thousand" | "tenThousand";
 type CelebrationQueueItem = {
+  special: boolean;
   amountSats?: number;
   side: CelebrationTarget;
   tier: ZapCelebrationTier;
@@ -36,71 +28,8 @@ type CelebrationQueueItem = {
 
 type Locale = "en" | "ja";
 
-const CONFETTI_COLORS = ["#ffd238", "#20d4ff", "#ff3e88", "#20f0b0", "#ffffff", "#ff8a1f"];
 const FEED_ITEMS_PER_SIDE = 40;
 const SOUND_ENABLED_STORAGE_KEY = "zap-battle:sound-enabled";
-const DEFAULT_ZAP_CELEBRATION_TIER: ZapCelebrationTier = "hundred";
-const ZAP_CELEBRATION_TIERS = {
-  one: {
-    className: "tier-one",
-    durationMs: 760,
-    confettiCount: 32,
-    spreadMin: 52,
-    spreadMax: 170,
-    lift: 130,
-    fall: 280,
-    text: "ZAP!"
-  },
-  ten: {
-    className: "tier-ten",
-    durationMs: 880,
-    confettiCount: 52,
-    spreadMin: 70,
-    spreadMax: 230,
-    lift: 170,
-    fall: 330,
-    text: "ZAP!"
-  },
-  hundred: {
-    className: "tier-hundred",
-    durationMs: 980,
-    confettiCount: 72,
-    spreadMin: 80,
-    spreadMax: 260,
-    lift: 220,
-    fall: 420,
-    text: "BIG ZAP!"
-  },
-  thousand: {
-    className: "tier-thousand",
-    durationMs: 1240,
-    confettiCount: 112,
-    spreadMin: 120,
-    spreadMax: 380,
-    lift: 290,
-    fall: 520,
-    text: "MEGA ZAP!"
-  },
-  tenThousand: {
-    className: "tier-ten-thousand",
-    durationMs: 1520,
-    confettiCount: 160,
-    spreadMin: 160,
-    spreadMax: 540,
-    lift: 360,
-    fall: 660,
-    text: "LEGEND ZAP!"
-  }
-} satisfies Record<ZapCelebrationTier, {
-  className: string;
-  confettiCount: number;
-  durationMs: number;
-  fall: number;
-  lift: number;
-  spreadMax: number;
-  spreadMin: number;
-  text: string;
-}>;
 
 const COPY = {
   en: {
@@ -223,6 +152,9 @@ export function BattleDisplay({
   const [adminActionStatus, setAdminActionStatus] = useState("");
   const [adminWorking, setAdminWorking] = useState(false);
   const [hasAdminToken, setHasAdminToken] = useState(false);
+  const specialThresholdRef = useRef(normalizeSpecialZapThreshold(session.specialZapThresholdSats));
+  specialThresholdRef.current = normalizeSpecialZapThreshold(session.specialZapThresholdSats);
+  const [specialCelebration, setSpecialCelebration] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
   const [celebrationNonce, setCelebrationNonce] = useState(0);
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
@@ -280,6 +212,14 @@ export function BattleDisplay({
   useEffect(() => {
     return () => window.clearTimeout(celebrationTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    window.clearTimeout(celebrationTimerRef.current);
+    celebrationQueueRef.current = [];
+    celebrationActiveRef.current = false;
+    setCelebrating(false);
+    setConfetti([]);
+  }, [session.id, session.startsAt]);
 
   useEffect(() => {
     if (session.startsAt && session.status !== "draft") return;
@@ -489,6 +429,7 @@ export function BattleDisplay({
   function enqueueCelebrations(receipts: ZapReceiptItem[], withSound: boolean) {
     if (receipts.length === 0) return;
     celebrationQueueRef.current.push(...receipts.map((item) => ({
+      special: isSpecialZap(item.amountSats, specialThresholdRef.current),
       amountSats: item.amountSats,
       side: item.side,
       tier: zapCelebrationTier(item.amountSats),
@@ -499,6 +440,7 @@ export function BattleDisplay({
 
   function enqueueCelebration(side: CelebrationTarget, withSound: boolean, amountSats?: number) {
     celebrationQueueRef.current.push({
+      special: side !== "center" && isSpecialZap(amountSats, specialThresholdRef.current),
       amountSats,
       side,
       tier: amountSats ? zapCelebrationTier(amountSats) : DEFAULT_ZAP_CELEBRATION_TIER,
@@ -518,6 +460,7 @@ export function BattleDisplay({
     setCelebrationSide(next.side);
     setCelebrationTier(next.tier);
     setCelebrationAmount(next.amountSats);
+    setSpecialCelebration(next.special);
     setConfetti(createConfetti(next.side, next.tier));
     setCelebrating(true);
     if (next.withSound) void playZapSound(next.tier);
@@ -530,7 +473,7 @@ export function BattleDisplay({
       if (celebrationQueueRef.current.length > 0) {
         celebrationTimerRef.current = window.setTimeout(runNextCelebration, 80);
       }
-    }, tier.durationMs);
+    }, next.special && next.amountSats ? specialZapDurationMs(next.amountSats) : tier.durationMs);
   }
 
   function toggleLocale() {
@@ -607,33 +550,8 @@ export function BattleDisplay({
 
   return (
     <main className={`battle-shell ${session.theme ? "battle-themed" : ""}`} style={session.theme ? themeStyle(session.theme) : undefined}>
-      {celebrating ? (
-        <div className={`celebration ${celebrationSide} ${ZAP_CELEBRATION_TIERS[celebrationTier].className}`} aria-hidden="true" key={celebrationNonce}>
-          <div className="zap-flash" />
-          <div className="zap-ring ring-one" />
-          {celebrationTier === "thousand" || celebrationTier === "tenThousand" ? <div className="zap-ring ring-two" /> : null}
-          {celebrationTier === "tenThousand" ? <div className="zap-ring ring-three" /> : null}
-          <div className="burst-text">
-            <span>{celebrationSide === "center" ? "TIME UP!" : ZAP_CELEBRATION_TIERS[celebrationTier].text}</span>
-            {celebrationAmount ? <small>{celebrationAmount.toLocaleString()} sats</small> : null}
-          </div>
-          {confetti.map((piece) => (
-            <span
-              className="confetti"
-              key={piece.id}
-              style={{
-                "--x": piece.x,
-                "--y": piece.y,
-                "--dx": piece.dx,
-                "--dy": piece.dy,
-                "--r": piece.r,
-                "--color": piece.color,
-                "--size": piece.size
-              } as React.CSSProperties}
-            />
-          ))}
-        </div>
-      ) : null}
+      {celebrating && specialCelebration && celebrationAmount && celebrationSide !== "center" ? <SpecialZapCelebration key={celebrationNonce} amount={celebrationAmount} side={celebrationSide} recipient={displayContestantName(session.contestants[celebrationSide])} locale={locale} /> : null}
+      {celebrating && !specialCelebration ? <ZapCelebration key={celebrationNonce} side={celebrationSide} tier={celebrationTier} amount={celebrationAmount} confetti={confetti} /> : null}
 
       <header className="battle-top">
         <div className="brand">
@@ -1173,34 +1091,6 @@ function globalAdminTokenStorageKey(): string {
   return "zap-battle:admin-token";
 }
 
-function zapCelebrationTier(amountSats: number): ZapCelebrationTier {
-  if (amountSats >= 10000) return "tenThousand";
-  if (amountSats >= 1000) return "thousand";
-  if (amountSats >= 100) return "hundred";
-  if (amountSats >= 10) return "ten";
-  return "one";
-}
-
-function createConfetti(target: CelebrationTarget, tierName: ZapCelebrationTier): ConfettiPiece[] {
-  const tier = ZAP_CELEBRATION_TIERS[tierName];
-  const centerX = target === "left" ? 25 : target === "right" ? 75 : 50;
-  const centerY = target === "center" ? 42 : 36;
-  return Array.from({ length: tier.confettiCount }, (_, index) => {
-    const side = index % 2 === 0 ? -1 : 1;
-    const spread = tier.spreadMin + Math.random() * (tier.spreadMax - tier.spreadMin);
-    const size = tierName === "tenThousand" ? 10 + Math.random() * 12 : tierName === "thousand" ? 8 + Math.random() * 10 : 6 + Math.random() * 8;
-    return {
-      id: `${Date.now()}-${index}`,
-      x: `${centerX - 4 + Math.random() * 8}%`,
-      y: `${centerY - 6 + Math.random() * 12}%`,
-      dx: `${side * spread}px`,
-      dy: `${-tier.lift + Math.random() * tier.fall}px`,
-      r: `${Math.random() * 360}deg`,
-      color: CONFETTI_COLORS[index % CONFETTI_COLORS.length] ?? "#ffd238",
-      size: `${size}px`
-    };
-  });
-}
 
 async function playZapSound(tierName: ZapCelebrationTier = DEFAULT_ZAP_CELEBRATION_TIER) {
   const context = getAudioContext();
