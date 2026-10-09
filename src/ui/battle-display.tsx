@@ -1,6 +1,6 @@
 "use client";
 
-import { themeStyle } from "@/src/battle-theme";
+import { safeImageUrl, themeStyle } from "@/src/battle-theme";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
@@ -920,6 +920,7 @@ function FinalSideCard({
   return (
     <article className={`final-card ${contestant.side} ${winner ? "winner" : ""}`}>
       <span>{winner ? copy.winner : copy.finalScore}</span>
+      <ContestantAvatar contestant={contestant} />
       <h3>{displayContestantName(contestant)}</h3>
       <strong>{stats.totalSats.toLocaleString()}</strong>
       <small>sats</small>
@@ -982,6 +983,7 @@ function ContestantStage({
   return (
     <article className={`side ${contestant.side}`}>
       <div className="player-head">
+        <ContestantAvatar contestant={contestant} />
         <h2>{displayContestantName(contestant)}</h2>
         <div className="score-mini">
           <div>
@@ -1341,4 +1343,9 @@ declare global {
   interface Window {
     webkitAudioContext?: typeof AudioContext;
   }
+}
+
+function ContestantAvatar({ contestant }: { contestant: Contestant }) {
+  const url = safeImageUrl(contestant.profileImageUrl);
+  return url ? <img className="contestant-avatar" src={url} alt="" onError={event => { event.currentTarget.style.display = "none"; }} /> : null;
 }
