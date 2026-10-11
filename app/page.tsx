@@ -6,12 +6,12 @@ import { BattleLauncher, type BattleLauncherLocale } from "@/src/ui/battle-launc
 
 const HOME_COPY = {
   en: {
-    description: "A live scoreboard that totals audience Lightning Zaps and compares support for each contestant.",
+    description: "Collect audience Lightning Zaps live. Compare two contestants in Battle mode, or support one performer in Solo mode.",
     language: "Language",
     setup: "setup"
   },
   ja: {
-    description: "観客からのLightning Zapをリアルタイム集計して、対戦者ごとの応援額を競うバトル用スコアボードです。",
+    description: "観客からのLightning Zapをリアルタイム集計。二人で競うバトルにも、一人を応援するソロライブにも使えます。",
     language: "言語",
     setup: "セットアップ"
   }

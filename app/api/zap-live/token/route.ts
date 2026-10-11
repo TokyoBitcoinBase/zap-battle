@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureSession } from "@/src/server/session-store";
 import { fetchLnurlPayMetadata, siteUrlFromRequest } from "@/src/server/lnurl";
 import type { BattleSide } from "@/src/types";
+import { isActiveSide } from "@/src/session-mode";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({})) as Partial<{ sessionId: string; side: BattleSide }>;
@@ -12,6 +13,9 @@ export async function POST(request: NextRequest) {
   }
 
   const session = await ensureSession(sessionId);
+  if (!isActiveSide(session, side)) {
+    return NextResponse.json({ error: "inactive_recipient" }, { status: 400 });
+  }
   const contestant = session.contestants[side];
   if (!contestant.lightningAddress.trim()) {
     return NextResponse.json({ error: "missing_lightning_address" }, { status: 400 });

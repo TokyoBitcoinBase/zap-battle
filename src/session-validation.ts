@@ -1,14 +1,14 @@
 import { normalizeSpecialZapThreshold } from "@/src/special-zap";
 import { normalizeTheme } from "@/src/battle-theme";
 import { normalizeNostrPubkey } from "@/src/nostr-pubkey";
+import { activeContestantSides } from "@/src/session-mode";
 import type { BattleSide, Contestant, ZapBattleFinalResult, ZapBattleSession, ZapReceiptItem } from "@/src/types";
-
-const SIDES: BattleSide[] = ["left", "right"];
 
 export function normalizeSession(input: unknown, fallbackId: string): ZapBattleSession {
   const value = isRecord(input) ? input : {};
   const now = currentSeconds();
   const title = readString(value.title, "Zap Battle").slice(0, 80);
+  const mode = value.mode === "solo" ? "solo" : "battle";
   const durationSeconds = clampInteger(value.durationSeconds, 1, 60 * 60 * 3, 10 * 60);
   const graceSeconds = clampInteger(value.graceSeconds, 10, 30, 30);
   const status = value.status === "live" || value.status === "paused" || value.status === "ended" ? value.status : "draft";
@@ -19,6 +19,7 @@ export function normalizeSession(input: unknown, fallbackId: string): ZapBattleS
   return {
     id: readString(value.id, fallbackId).slice(0, 96) || fallbackId,
     title,
+    mode,
     theme: value.theme ? normalizeTheme(value.theme) : undefined,
     specialZapThresholdSats: normalizeSpecialZapThreshold(value.specialZapThresholdSats),
     status,
@@ -26,7 +27,7 @@ export function normalizeSession(input: unknown, fallbackId: string): ZapBattleS
     endsAt,
     durationSeconds,
     graceSeconds,
-    finalResult: normalizeFinalResult(value.finalResult),
+    finalResult: normalizeFinalResult(value.finalResult, mode === "solo"),
     contestants: {
       left: normalizeContestant(contestantsValue.left, "left"),
       right: normalizeContestant(contestantsValue.right, "right")
@@ -38,7 +39,7 @@ export function normalizeSession(input: unknown, fallbackId: string): ZapBattleS
 
 export function validateSessionReady(session: ZapBattleSession): string[] {
   const errors: string[] = [];
-  SIDES.forEach((side) => {
+  activeContestantSides(session).forEach((side) => {
     const contestant = session.contestants[side];
     if (!contestant.displayName.trim()) errors.push(`${side} display name is required.`);
     if (!contestant.lightningAddress.trim()) errors.push(`${side} Lightning Address is required.`);
@@ -66,18 +67,18 @@ function normalizeContestant(input: unknown, side: BattleSide): Contestant {
   };
 }
 
-function normalizeFinalResult(input: unknown): ZapBattleFinalResult | undefined {
+function normalizeFinalResult(input: unknown, solo: boolean): ZapBattleFinalResult | undefined {
   const value = isRecord(input) ? input : null;
   if (!value) return undefined;
-  const winner = value.winner === "left" || value.winner === "right" || value.winner === "tied"
+  const winner = solo ? "solo" : value.winner === "left" || value.winner === "right" || value.winner === "tied"
     ? value.winner
     : "tied";
   return {
     capturedAt: clampInteger(value.capturedAt, 0, Number.MAX_SAFE_INTEGER, currentSeconds()),
     winner,
     left: normalizeSideResult(value.left),
-    right: normalizeSideResult(value.right),
-    receipts: normalizeReceipts(value.receipts)
+    right: normalizeSideResult(solo ? undefined : value.right),
+    receipts: normalizeReceipts(value.receipts).filter((receipt) => !solo || receipt.side === "left")
   };
 }
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
-import type { ZapBattleSessionSummary } from "@/src/types";
+import type { SessionMode, ZapBattleSessionSummary } from "@/src/types";
 
 type SessionsResponse = {
   sessions?: ZapBattleSessionSummary[];
@@ -19,13 +19,13 @@ const LAUNCHER_COPY = {
     admin: "Admin",
     adminToken: "Admin Token",
     adminTokenPlaceholder: "Required in production",
-    battleId: "Battle ID",
-    battleIdRequired: "Enter a Battle ID.",
+    battleId: "Event ID",
+    battleIdRequired: "Enter an Event ID.",
     checking: "Checking...",
     checkingStatus: "Checking token...",
     invalid: "Admin token is invalid.",
     loadingSaved: "Loading saved URLs...",
-    newBattle: "New Battle URL",
+    newBattle: "New event URL",
     noSaved: "No saved URLs.",
     openAdmin: "Open Admin",
     openPublic: "Open Public Display",
@@ -33,14 +33,14 @@ const LAUNCHER_COPY = {
     publicUrl: "Public URL",
     refresh: "Refresh",
     refreshing: "Loading...",
-    savedBattle: "Saved Battle URLs",
-    savedDescription: "Saved battles are listed with the most recently updated first.",
+    savedBattle: "Saved event URLs",
+    savedDescription: "Saved events are listed with the most recently updated first.",
     savedLoadError: "Could not load saved URLs.",
     statusDraft: "Ready",
     statusEnded: "Ended",
     statusLive: "Live",
     statusPaused: "Paused",
-    unlock: "Unlock Battle Setup",
+    unlock: "Unlock Event Setup",
     updated: "Updated",
     verified: "Admin token verified."
   },
@@ -48,13 +48,13 @@ const LAUNCHER_COPY = {
     admin: "管理画面",
     adminToken: "管理トークン",
     adminTokenPlaceholder: "本番環境では必須",
-    battleId: "Battle ID",
-    battleIdRequired: "Battle IDを入力してください。",
+    battleId: "イベントID",
+    battleIdRequired: "イベントIDを入力してください。",
     checking: "確認中...",
     checkingStatus: "管理トークンを確認しています...",
     invalid: "管理トークンが正しくありません。",
     loadingSaved: "保存済みURLを読み込んでいます...",
-    newBattle: "新しいBattle URL",
+    newBattle: "新しいイベントURL",
     noSaved: "保存済みURLはありません。",
     openAdmin: "管理画面を開く",
     openPublic: "公開画面を開く",
@@ -62,14 +62,14 @@ const LAUNCHER_COPY = {
     publicUrl: "公開URL",
     refresh: "再読込",
     refreshing: "読込中...",
-    savedBattle: "保存済みBattle URL",
-    savedDescription: "保存されているバトルを新しい順に表示しています。",
+    savedBattle: "保存済みイベントURL",
+    savedDescription: "保存されているイベントを新しい順に表示しています。",
     savedLoadError: "保存済みURLを読み込めませんでした。",
     statusDraft: "開始待ち",
     statusEnded: "終了",
     statusLive: "ライブ",
     statusPaused: "停止中",
-    unlock: "バトル設定を開く",
+    unlock: "イベント設定を開く",
     updated: "更新",
     verified: "管理トークンを確認しました。"
   }
@@ -78,6 +78,7 @@ const LAUNCHER_COPY = {
 export function BattleLauncher({ locale = "ja" }: { locale?: BattleLauncherLocale }) {
   const router = useRouter();
   const [battleId, setBattleId] = useState("");
+  const [mode, setMode] = useState<SessionMode>("battle");
   const [adminToken, setAdminToken] = useState("");
   const [verified, setVerified] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -87,7 +88,7 @@ export function BattleLauncher({ locale = "ja" }: { locale?: BattleLauncherLocal
   const [sessionsError, setSessionsError] = useState(false);
   const normalizedId = useMemo(() => normalizeBattleId(battleId), [battleId]);
   const displayPath = normalizedId ? sessionDisplayPath(normalizedId) : "";
-  const operatorPath = displayPath ? `${displayPath}?admin=1&create=1` : "";
+  const operatorPath = displayPath ? `${displayPath}?admin=1&create=1&mode=${mode}` : "";
   const copy = LAUNCHER_COPY[locale];
 
   useEffect(() => {
@@ -191,6 +192,13 @@ export function BattleLauncher({ locale = "ja" }: { locale?: BattleLauncherLocal
         <>
           <section className="new-battle">
             <h2>{copy.newBattle}</h2>
+            <label className="field mode-field">
+              <span>{locale === "ja" ? "モード" : "Mode"}</span>
+              <select value={mode} onChange={(event) => setMode(event.target.value === "solo" ? "solo" : "battle")}>
+                <option value="battle">{locale === "ja" ? "バトル — 二人で対戦" : "Battle — two contestants"}</option>
+                <option value="solo">{locale === "ja" ? "ソロ — 一人を応援" : "Solo — support one performer"}</option>
+              </select>
+            </label>
             <label className="field">
               <span>{copy.battleId}</span>
               <input
@@ -251,6 +259,7 @@ export function BattleLauncher({ locale = "ja" }: { locale?: BattleLauncherLocal
                       <div className="saved-battle-info">
                         <div className="saved-battle-title">
                           <strong>{savedSession.title}</strong>
+                          <span className="saved-battle-status">{savedSession.mode === "solo" ? locale === "ja" ? "ソロ" : "Solo" : locale === "ja" ? "バトル" : "Battle"}</span>
                           <span className={`saved-battle-status ${savedSession.status}`}>
                             {sessionStatusLabel(savedSession.status, locale)}
                           </span>

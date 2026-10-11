@@ -1,5 +1,6 @@
 import type { BattleTheme } from "@/src/battle-theme";
 export type BattleSide = "left" | "right";
+export type SessionMode = "battle" | "solo";
 
 export type Contestant = {
   side: BattleSide;
@@ -13,6 +14,7 @@ export type Contestant = {
 export type ZapBattleSession = {
   id: string;
   title: string;
+  mode?: SessionMode;
   theme?: BattleTheme;
   specialZapThresholdSats?: number | null;
   status: "draft" | "live" | "paused" | "ended";
@@ -31,7 +33,7 @@ export type ZapBattleSession = {
 
 export type ZapBattleSessionSummary = Pick<
   ZapBattleSession,
-  "id" | "status" | "title" | "createdAt" | "updatedAt"
+  "id" | "mode" | "status" | "title" | "createdAt" | "updatedAt"
 >;
 
 export type ZapReceiptItem = {
@@ -51,7 +53,7 @@ export type ZapBattleSideResult = {
 
 export type ZapBattleFinalResult = {
   capturedAt: number;
-  winner: BattleSide | "tied";
+  winner: BattleSide | "tied" | "solo";
   left: ZapBattleSideResult;
   right: ZapBattleSideResult;
   receipts: ZapReceiptItem[];

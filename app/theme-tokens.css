@@ -1,4 +1,17 @@
 :root {
+  /* Solo: one performer in the spotlight, using the existing broadcast palette. */
+  --solo-accent: var(--gold);
+  --solo-space: 24px;
+  --solo-space-small: 12px;
+  --solo-width: 1080px;
+  --solo-radius: var(--theme-radius);
+  --solo-heading: clamp(32px, 5vw, 68px);
+  --solo-total: clamp(56px, 7vw, 88px);
+  --solo-label: 16px;
+  --solo-qr-size: clamp(240px, 32vh, 360px);
+  --solo-shadow: 0 12px 32px color-mix(in srgb, var(--solo-accent) 20%, transparent);
+}
+:root {
   --theme-space: 16px;
   --theme-radius: 8px;
   --theme-small: 13px;

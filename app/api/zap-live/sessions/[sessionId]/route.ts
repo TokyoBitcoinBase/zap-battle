@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/src/server/admin-auth";
 import { deleteSession, ensureSession, lookupSession, saveSession } from "@/src/server/session-store";
 import { nextSessionUpdatedAt, normalizeSession } from "@/src/session-validation";
+import { sessionMode } from "@/src/session-mode";
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
@@ -14,7 +15,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     const unauthorized = requireAdmin(_request);
     if (unauthorized) return unauthorized;
     try {
-      const session = await ensureSession(sessionId);
+      const mode = _request.nextUrl.searchParams.get("mode") === "solo" ? "solo" : "battle";
+      const session = await ensureSession(sessionId, mode);
       return noStoreJson({ session });
     } catch {
       return persistenceUnavailable();
@@ -46,6 +48,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       id: sessionId,
       updatedAt: nextSessionUpdatedAt(existing.updatedAt)
     }, sessionId);
+    // Resetting to draft clears the previous run and permits changing its mode.
+    if (sessionMode(existing) !== sessionMode(session) && (session.status !== "draft" || session.startsAt !== null)) {
+      return noStoreJson({ error: "mode_locked", errors: ["Clear results before changing the mode."] }, { status: 409 });
+    }
     await saveSession(session);
     return noStoreJson({ session });
   } catch {

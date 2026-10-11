@@ -1773,6 +1773,81 @@ select {
 }
 
 /* Per-battle theme. Legacy sessions retain the original display. */
+.mode-field select {
+  width: 100%;
+  min-width: 0;
+  padding: var(--solo-space-small);
+  border: 1px solid var(--line);
+  border-radius: var(--solo-radius);
+  background: var(--bg);
+  color: var(--text);
+}
+.mode-field select:focus-visible {
+  outline: 2px solid var(--solo-accent);
+  outline-offset: 3px;
+}
+.admin-grid.solo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.solo-shell { --solo-accent: var(--gold); }
+.solo-shell :focus-visible { outline: 2px solid var(--solo-accent); outline-offset: 3px; }
+.solo-shell::before, .solo-arena::after { display: none; }
+.solo-event-title {
+  color: var(--solo-accent);
+  font-size: var(--theme-heading);
+  line-height: 1.5;
+  margin: 0 0 var(--solo-space-small);
+  overflow-wrap: anywhere;
+}
+.solo-arena {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: auto;
+  flex: 0 0 auto;
+  padding: var(--solo-space);
+}
+.solo-arena .side {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto;
+  align-items: center;
+  gap: var(--solo-space);
+  width: 100%;
+  max-width: var(--solo-width);
+  margin: auto;
+  padding: var(--solo-space);
+  background: transparent;
+  border: 0;
+  min-height: 0;
+}
+.solo-arena .player-head { display: grid; gap: var(--solo-space); }
+.solo-arena .player-head h2 { display: block; font-size: var(--solo-heading); line-height: 1.2; -webkit-line-clamp: unset; }
+.solo-arena .score-mini { text-align: left; }
+.solo-arena .score-mini strong { font-size: var(--solo-total); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.solo-arena .score-mini small { font-size: var(--solo-label); }
+.solo-arena .score-mini span { font-size: var(--solo-label); }
+.solo-total-label, .solo-qr-label { color: var(--muted); font-size: var(--solo-label); line-height: 1.5; margin: 0 0 var(--solo-space-small); text-shadow: none; }
+.solo-arena .qr-zone { margin: 0; }
+.solo-arena .side .qr-frame { width: min(100%, var(--solo-qr-size)); height: auto; aspect-ratio: 1; border-color: var(--solo-accent); box-shadow: var(--solo-shadow); }
+.solo-arena .lightning-address { font-size: var(--solo-label); }
+.solo-shell .feed-dock, .solo-shell .feed-dock.final {
+  position: relative;
+  inset: auto;
+  transform: none;
+  margin: var(--solo-space) auto;
+  max-width: var(--solo-width);
+}
+.solo-shell .feed-lanes, .theme-preview-players.solo { grid-template-columns: minmax(0, 1fr); }
+.solo-final { width: min(calc(100% - var(--solo-space) * 2), var(--solo-width)); margin: var(--solo-space) auto 0; }
+.solo-final .final-card { border-color: var(--solo-accent); max-width: calc(var(--solo-width) / 2); margin: auto; }
+.solo-thanks { color: var(--solo-accent); font-size: var(--theme-heading); text-align: center; }
+.solo-shell .celebration.left .burst-text, .solo-shell .celebration.left .zap-flash, .solo-shell .celebration.left .zap-ring { left: 50%; }
+.solo-shell .celebration.left .burst-text { max-width: calc(100vw - var(--solo-space) * 2); }
+@media (max-width: 860px) {
+  .solo-shell .brand h1 { font-size: var(--theme-heading); }
+  .admin-grid.solo, .solo-arena .side { grid-template-columns: minmax(0, 1fr); }
+  .solo-arena { padding: var(--solo-space-small); }
+  .solo-arena .side { padding: var(--solo-space-small); }
+  .solo-arena .player-head { gap: var(--solo-space-small); }
+  .solo-arena .qr-zone { margin-top: var(--solo-space-small); }
+}
+
 .battle-themed, .theme-preview {
   color: var(--text);
   font-family: var(--battle-font);

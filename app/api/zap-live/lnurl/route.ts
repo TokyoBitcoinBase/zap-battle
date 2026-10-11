@@ -3,6 +3,7 @@ import { fetchLnurlPayMetadata, siteUrlFromRequest } from "@/src/server/lnurl";
 import { verifyZapLiveToken } from "@/src/server/lnurl-token";
 import { ensureSession } from "@/src/server/session-store";
 import type { BattleSide } from "@/src/types";
+import { isActiveSide, sessionMode } from "@/src/session-mode";
 
 type ZapLiveTarget = {
   sessionId: string;
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     const target = readZapLiveTarget(request);
     const session = await ensureSession(target.sessionId);
+    if (!isActiveSide(session, target.side)) throw new Error("This recipient is not active in solo mode.");
     const contestant = session.contestants[target.side];
     const lightningAddress = contestant.lightningAddress;
     const displayName = contestant.displayName || (target.side === "left" ? "PLAYER 1" : "PLAYER 2");
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
       minSendable: targetMetadata.minSendable,
       maxSendable: targetMetadata.maxSendable,
       metadata: JSON.stringify([
-        ["text/plain", `Zap Battle: ${displayName}`],
+        ["text/plain", `${sessionMode(session) === "solo" ? "Solo Zap" : "Zap Battle"}: ${displayName}`],
         ["text/identifier", `zap-battle:${target.sessionId}:${target.side}`]
       ]),
       commentAllowed: Math.min(targetMetadata.commentAllowed ?? 80, 120),

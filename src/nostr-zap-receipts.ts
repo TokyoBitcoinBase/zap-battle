@@ -2,6 +2,7 @@ import { verifyEvent } from "nostr-tools/pure";
 import { SimplePool } from "nostr-tools/pool";
 import { receiptRelaysFromEnv } from "@/src/relays";
 import type { BattleSide, ZapBattleSession, ZapReceiptItem } from "@/src/types";
+import { activeContestantSides, sessionMode } from "@/src/session-mode";
 import {
   isZapRequestWithinBattle,
   receiptEventAcceptedUntil
@@ -24,10 +25,7 @@ export function subscribeToZapReceipts({
   session: ZapBattleSession;
   onReceipt(item: ZapReceiptItem): void;
 }): () => void {
-  const contestantPubkeys = [
-    session.contestants.left.nostrPubkey,
-    session.contestants.right.nostrPubkey
-  ].filter((pubkey): pubkey is string => Boolean(pubkey));
+  const contestantPubkeys = activeContestantSides(session).map((side) => session.contestants[side].nostrPubkey).filter((pubkey): pubkey is string => Boolean(pubkey));
   if (!session.startsAt || contestantPubkeys.length === 0) return () => undefined;
 
   const pool = new SimplePool();
@@ -59,10 +57,7 @@ export async function fetchZapReceiptsOnce({
   since?: number;
   maxWait?: number;
 }): Promise<ZapReceiptItem[]> {
-  const contestantPubkeys = [
-    session.contestants.left.nostrPubkey,
-    session.contestants.right.nostrPubkey
-  ].filter((pubkey): pubkey is string => Boolean(pubkey));
+  const contestantPubkeys = activeContestantSides(session).map((side) => session.contestants[side].nostrPubkey).filter((pubkey): pubkey is string => Boolean(pubkey));
   if (!session.startsAt || contestantPubkeys.length === 0) return [];
 
   const pool = new SimplePool();
@@ -109,10 +104,7 @@ export async function fetchZapReceiptsFromServer({
 }
 
 function createZapReceiptFilter(session: ZapBattleSession, since: number) {
-  const contestantPubkeys = [
-    session.contestants.left.nostrPubkey,
-    session.contestants.right.nostrPubkey
-  ].filter((pubkey): pubkey is string => Boolean(pubkey));
+  const contestantPubkeys = activeContestantSides(session).map((side) => session.contestants[side].nostrPubkey).filter((pubkey): pubkey is string => Boolean(pubkey));
   const receiptUntil = receiptEventAcceptedUntil(session);
   return {
     kinds: [9735],
@@ -128,7 +120,7 @@ type ParsedZapReceipt = {
   senderPubkey: string;
 };
 
-function parseZapReceipt(receipt: NostrEvent, session: ZapBattleSession): ParsedZapReceipt | null {
+export function parseZapReceipt(receipt: NostrEvent, session: ZapBattleSession): ParsedZapReceipt | null {
   if (receipt.kind !== 9735 || !verifyEvent(receipt)) return null;
   const description = getTag(receipt, "description");
   if (!description) return null;
@@ -169,6 +161,10 @@ function parseZapReceipt(receipt: NostrEvent, session: ZapBattleSession): Parsed
 
 function sideForReceipt(zapRequest: NostrEvent, recipientPubkey: string, session: ZapBattleSession): BattleSide | null {
   const taggedSide = getTag(zapRequest, "zap_live_side");
+  if (sessionMode(session) === "solo") {
+    if (taggedSide === "right" || recipientPubkey !== session.contestants.left.nostrPubkey) return null;
+    return "left";
+  }
   if ((taggedSide === "left" || taggedSide === "right") && getTag(zapRequest, "zap_live") === session.id) {
     return taggedSide;
   }

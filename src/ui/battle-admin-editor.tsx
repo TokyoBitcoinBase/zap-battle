@@ -11,6 +11,7 @@ import { cleanupTemporaryProfile, createTemporaryProfile } from "@/src/nostr-tem
 import { normalizeNostrPubkey } from "@/src/nostr-pubkey";
 import { relaysFromEnv } from "@/src/relays";
 import type { BattleSide, Contestant, ZapBattleSession } from "@/src/types";
+import { activeContestantSides, sessionMode } from "@/src/session-mode";
 
 type SessionResponse = {
   session: ZapBattleSession;
@@ -208,6 +209,8 @@ export function BattleAdminEditor({
 }) {
   const copy = ADMIN_COPY[locale];
   const [session, setSession] = useState<ZapBattleSession>({ ...DEFAULT_SESSION, id: sessionId });
+  const solo = sessionMode(session) === "solo";
+  const ja = locale === "ja";
   const [durationDraft, setDurationDraft] = useState(() => durationInputParts(DEFAULT_SESSION.durationSeconds));
   const [loading, setLoading] = useState(true);
   const [zapSettingsValid, setZapSettingsValid] = useState(true);
@@ -221,7 +224,7 @@ export function BattleAdminEditor({
   const [profileLoadingSide, setProfileLoadingSide] = useState<BattleSide | null>(null);
   const displayUrl = `/zap-battle/${encodeURIComponent(sessionId)}/display`;
   const absoluteDisplayUrl = useAbsoluteUrl(displayUrl);
-  const iframeCode = `<iframe src="${absoluteDisplayUrl}" style="width:100%;min-height:900px;border:0;" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" title="Zap Battle"></iframe>`;
+  const iframeCode = `<iframe src="${absoluteDisplayUrl}" style="width:100%;min-height:900px;border:0;" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" title="${solo ? "Solo Zap" : "Zap Battle"}"></iframe>`;
   const missingTemporaryProfileSides = temporaryProfileCandidateSides(session);
   const shouldCreateMissingTemporaryProfiles = createMissingTemporaryProfiles && missingTemporaryProfileSides.length > 0;
 
@@ -419,6 +422,8 @@ export function BattleAdminEditor({
       const nextSession: ZapBattleSession = {
         ...DEFAULT_SESSION,
         id: sessionId,
+        mode: sessionMode(session),
+        title: solo ? "Solo Zap" : DEFAULT_SESSION.title,
         updatedAt: Math.floor(Date.now() / 1000)
       };
       setSession(nextSession);
@@ -504,8 +509,8 @@ export function BattleAdminEditor({
         <section className="admin-head">
           <div>
           <p className="eyebrow">Zap Battle Admin</p>
-          <h1>{copy.setupTitle}</h1>
-          <p>{copy.setupDescription}</p>
+          <h1>{solo ? ja ? "ソロ設定" : "Solo setup" : copy.setupTitle}</h1>
+          <p>{solo ? ja ? "出演者の公開可能なニックネームとライトニングアドレスを入力してください。" : "Enter the performer's public stage name and Lightning Address." : copy.setupDescription}</p>
           </div>
           <div className={`status ${session.status === "live" ? "live" : ""}`}>
             <span className="status-dot" aria-hidden="true" />
@@ -514,7 +519,7 @@ export function BattleAdminEditor({
         </section>
       ) : null}
 
-      <section className="admin-grid">
+      <section className={`admin-grid ${solo ? "solo" : ""}`}>
         <div className="admin-card">
           <label className="field">
             <span>{copy.token}</span>
@@ -525,16 +530,31 @@ export function BattleAdminEditor({
               type="password"
             />
           </label>
+          <label className="field mode-field">
+            <span>{ja ? "モード" : "Mode"}</span>
+            <select
+              value={sessionMode(session)}
+              disabled={loading || saving || imageUploading || session.status !== "draft" || session.startsAt !== null}
+              onChange={(event) => setSession((current) => ({ ...current, mode: event.target.value === "solo" ? "solo" : "battle" }))}
+            >
+              <option value="battle">{ja ? "バトル — 二人で対戦" : "Battle — two contestants"}</option>
+              <option value="solo">{ja ? "ソロ — 一人を応援" : "Solo — support one performer"}</option>
+            </select>
+          </label>
+          <p className="field-note">{session.status !== "draft" || session.startsAt !== null
+            ? ja ? `モードを変更するには、先に「${copy.clearResults}」を押してください。` : "Clear results before changing the mode."
+            : solo ? ja ? "一人へのZapを集計します。勝敗は表示しません。" : "Collect Zaps for one performer, with no winner or loser."
+            : ja ? "二人へのZapを比べます。" : "Compare Zaps for two contestants."}</p>
           <label className="field">
-            <span>{copy.title}</span>
+            <span>{solo ? ja ? "イベント名" : "Event title" : copy.title}</span>
             <input
               value={session.title}
               onChange={(event) => setSession((current) => ({ ...current, title: event.target.value }))}
-              placeholder="Dance Battle Final"
+              placeholder={solo ? ja ? "お笑いライブ" : "Comedy live" : "Dance Battle Final"}
             />
           </label>
           <label className="field">
-            <span>{copy.time}</span>
+            <span>{solo ? ja ? "受付時間" : "Session time" : copy.time}</span>
             <div className="time-grid">
               <label>
                 <small>{copy.minutes}</small>
@@ -569,6 +589,7 @@ export function BattleAdminEditor({
 
         <ContestantForm
           copy={copy}
+          label={solo ? ja ? "出演者" : "Performer" : undefined}
           contestant={session.contestants.left}
           onChange={(contestant) => setContestant(setSession, "left", contestant)}
           onCreateTemporaryProfile={() => void createInstantContestant("left")}
@@ -577,7 +598,7 @@ export function BattleAdminEditor({
           profileLoading={profileLoadingSide === "left"}
           working={saving || imageUploading}
         />
-        <ContestantForm
+        {!solo ? <ContestantForm
           copy={copy}
           contestant={session.contestants.right}
           onChange={(contestant) => setContestant(setSession, "right", contestant)}
@@ -586,7 +607,7 @@ export function BattleAdminEditor({
           onLoadNostrProfile={() => void loadNostrProfile("right")}
           profileLoading={profileLoadingSide === "right"}
           working={saving || imageUploading}
-        />
+        /> : null}
       </section>
 
       {missingTemporaryProfileSides.length > 0 ? (
@@ -651,6 +672,7 @@ export function BattleAdminEditor({
 
 function ContestantForm({
   copy,
+  label,
   contestant,
   onChange,
   onCreateTemporaryProfile,
@@ -660,6 +682,7 @@ function ContestantForm({
   working
 }: {
   copy: typeof ADMIN_COPY[AdminLocale];
+  label?: string;
   contestant: Contestant;
   onChange(contestant: Contestant): void;
   onCreateTemporaryProfile(): void;
@@ -671,13 +694,13 @@ function ContestantForm({
   const hasNostrPubkey = Boolean(contestant.nostrPubkey?.trim());
   return (
     <div className={`admin-card contestant-form ${contestant.side}`}>
-      <h2>{contestant.side === "left" ? "PLAYER 1" : "PLAYER 2"}</h2>
+      <h2>{label || (contestant.side === "left" ? "PLAYER 1" : "PLAYER 2")}</h2>
       <label className="field">
         <span>{copy.displayName}</span>
         <input
           value={contestant.displayName}
           onChange={(event) => onChange({ ...contestant, displayName: event.target.value })}
-          placeholder={contestant.side === "left" ? "Player 1" : "Player 2"}
+          placeholder={label || (contestant.side === "left" ? "Player 1" : "Player 2")}
         />
       </label>
       <p className="field-note">{copy.displayNameNote}</p>
@@ -724,12 +747,12 @@ function ContestantForm({
 function saveStatusMessage(session: ZapBattleSession, successMessage: string, copy: typeof ADMIN_COPY[AdminLocale]): string {
   const missingSides = missingNostrProfileSides(session);
   if (missingSides.length === 0) return successMessage;
-  const players = missingSides.map((side) => side === "left" ? "PLAYER 1" : "PLAYER 2").join(", ");
+  const players = missingSides.map((side) => sessionMode(session) === "solo" ? session.contestants.left.displayName : side === "left" ? "PLAYER 1" : "PLAYER 2").join(", ");
   return `${successMessage} ${copy.saveNeedsNostr.replace("{players}", players)}`;
 }
 
 function missingNostrProfileSides(session: ZapBattleSession): BattleSide[] {
-  return (["left", "right"] as BattleSide[]).filter((side) => {
+  return activeContestantSides(session).filter((side) => {
     const contestant = session.contestants[side];
     return Boolean(contestant.displayName.trim() && contestant.lightningAddress.trim() && !contestant.nostrPubkey?.trim());
   });
@@ -816,7 +839,7 @@ function setContestant(
 }
 
 function temporaryProfileCandidateSides(session: ZapBattleSession): BattleSide[] {
-  return (["left", "right"] as BattleSide[]).filter((side) => {
+  return activeContestantSides(session).filter((side) => {
     const contestant = session.contestants[side];
     return Boolean(
       contestant.displayName.trim() &&

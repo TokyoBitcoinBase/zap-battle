@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
 import { BattleDisplay } from "@/src/ui/battle-display";
-import type { ZapBattleSession } from "@/src/types";
+import type { SessionMode, ZapBattleSession } from "@/src/types";
 
 type SessionResponse = {
   session: ZapBattleSession;
@@ -13,10 +13,12 @@ type SessionResponse = {
 export function BattleDisplayLoader({
   adminEnabled = false,
   createEnabled = false,
+  createMode = "battle",
   sessionId
 }: {
   adminEnabled?: boolean;
   createEnabled?: boolean;
+  createMode?: SessionMode;
   sessionId: string;
 }) {
   const [session, setSession] = useState<ZapBattleSession | null>(null);
@@ -40,7 +42,7 @@ export function BattleDisplayLoader({
         const adminToken = readStoredAdminToken(sessionId);
         setAdminTokenDraft(adminToken);
         const shouldCreate = mayCreate;
-        const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(sessionId)}${shouldCreate ? "?create=1" : ""}`, {
+        const response = await fetch(`/api/zap-live/sessions/${encodeURIComponent(sessionId)}${shouldCreate ? `?create=1&mode=${createMode}` : ""}`, {
           cache: "no-store",
           signal: controller.signal,
           headers: adminEnabled ? adminHeaders(adminToken) : undefined
@@ -90,7 +92,7 @@ export function BattleDisplayLoader({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [adminAuthRequired, adminEnabled, createEnabled, deactivationStatus, reloadNonce, sessionId]);
+  }, [adminAuthRequired, adminEnabled, createEnabled, createMode, deactivationStatus, reloadNonce, sessionId]);
 
   function retrySession() {
     setError("");
@@ -165,7 +167,7 @@ export function BattleDisplayLoader({
                   : "Battleデータがまだ見つかりません。自動で再確認しています。")}
               </p>
               {(deactivationStatus || deactivated) && adminEnabled ? (
-                <p>再利用する場合はトップページの「新しいBattle URL」から作成してください。</p>
+                <p>再利用する場合はトップページの「新しいイベントURL」から作成してください。</p>
               ) : null}
             </div>
             <div className="home-actions">
@@ -211,6 +213,7 @@ function removeCreateQueryParam(): void {
   const url = new URL(window.location.href);
   if (!url.searchParams.has("create")) return;
   url.searchParams.delete("create");
+  url.searchParams.delete("mode");
   window.history.replaceState(
     window.history.state,
     "",

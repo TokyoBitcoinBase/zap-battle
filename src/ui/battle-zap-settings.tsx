@@ -8,6 +8,7 @@ import { useBattleSound } from "@/src/ui/use-battle-sound";
 import { createPreviewAudioChannel, playZapSound, playTimeUpSound } from "@/src/zap-audio";
 import { TIME_UP_DURATION_MS } from "@/src/time-up";
 import { themeStyle } from "@/src/battle-theme";
+import { sessionMode } from "@/src/session-mode";
 import type { ZapBattleSession } from "@/src/types";
 
 type Preview = { amount?: number; special: boolean; side: CelebrationTarget; tier: ZapCelebrationTier; confetti: ConfettiPiece[]; nonce: number };
@@ -23,6 +24,8 @@ export function BattleZapSettings({ session, onChange, disabled, locale, onValid
   const [side, setSide] = useState<"left" | "right">("left");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const ja = locale === "ja";
+  const solo = sessionMode(session) === "solo";
+  const recipientSide = solo ? "left" : side;
   const value = Number(draft);
   const valid = threshold === null || (/^\d+$/.test(draft) && Number.isSafeInteger(value) && value > 0);
   useEffect(() => { setDraft(String(threshold ?? DEFAULT_SPECIAL_ZAP_THRESHOLD)); }, [threshold]);
@@ -30,7 +33,7 @@ export function BattleZapSettings({ session, onChange, disabled, locale, onValid
   useEffect(() => () => { clearTimeout(timer.current); audioRef.current?.stop(); }, []);
   useEffect(() => { if (!soundEnabled) audioRef.current?.stop(); }, [soundEnabled]);
   function stop() { clearTimeout(timer.current); audioRef.current?.stop(); audioRef.current = null; setPreview(null); }
-  function play(amount?: number, special = false, target: CelebrationTarget = side) {
+  function play(amount?: number, special = false, target: CelebrationTarget = recipientSide) {
     clearTimeout(timer.current);
     audioRef.current?.stop();
     setAudioMessage("");
@@ -61,11 +64,11 @@ export function BattleZapSettings({ session, onChange, disabled, locale, onValid
       <label className="checkbox-field preview-sound"><input type="checkbox" checked={soundEnabled} onChange={e => setSoundEnabled(e.target.checked)} /><span>{ja ? "プレビューで効果音を鳴らす" : "Play preview sound"}</span></label>
       <p className="theme-note">{ja ? "公開画面のSoundと共通です。このブラウザに保存されます。" : "Shared with the display Sound setting. Saved in this browser."}</p>
       {audioMessage ? <p role="status">{audioMessage}</p> : null}
-      <label className="field"><span>{ja ? "受け取り側" : "Recipient"}</span><select aria-label={ja ? "演出の受け取り側" : "Effect recipient"} value={side} onChange={e => setSide(e.target.value as "left" | "right")}><option value="left">PLAYER 1</option><option value="right">PLAYER 2</option></select></label>
+      <label className="field"><span>{ja ? "受け取り側" : "Recipient"}</span><select aria-label={ja ? "演出の受け取り側" : "Effect recipient"} value={recipientSide} onChange={e => setSide(e.target.value as "left" | "right")}><option value="left">{solo ? ja ? "出演者" : "Performer" : "PLAYER 1"}</option>{!solo ? <option value="right">PLAYER 2</option> : null}</select></label>
       <div className="zap-preview-buttons">{[1, 10, 100, 1000, 10000].map(amount => <button className="button" type="button" key={amount} onClick={() => play(amount)}>{amount.toLocaleString("en-US")} sats</button>)}<button className="button gold" type="button" disabled={!valid || threshold === null} onClick={() => play(value, true)}>{ja ? "特別演出" : "Special effect"}{threshold !== null && valid ? ` · ${value.toLocaleString("en-US")} sats` : ""}</button><button className="button" type="button" onClick={() => play(undefined, false, "center")}>{ja ? "タイムアップ" : "Time up"}</button></div>
     </div>
     {preview ? <div className="zap-preview-stage" style={themeStyle(session.theme)}>
-      {preview.special && preview.amount ? <SpecialZapCelebration key={preview.nonce} amount={preview.amount} side={preview.side === "right" ? "right" : "left"} recipient={session.contestants[preview.side === "right" ? "right" : "left"].displayName || (preview.side === "right" ? "PLAYER 2" : "PLAYER 1")} locale={locale} /> : <ZapCelebration key={preview.nonce} side={preview.side} tier={preview.tier} amount={preview.amount} confetti={preview.confetti} locale={locale} />}
+      {preview.special && preview.amount ? <SpecialZapCelebration key={preview.nonce} amount={preview.amount} side={preview.side === "right" ? "right" : "left"} recipient={session.contestants[preview.side === "right" ? "right" : "left"].displayName || (preview.side === "right" ? "PLAYER 2" : "PLAYER 1")} locale={locale} /> : <ZapCelebration key={preview.nonce} side={preview.side} tier={preview.tier} amount={preview.amount} confetti={preview.confetti} locale={locale} solo={solo} />}
       <button className="button zap-preview-close" type="button" onClick={stop}>{ja ? "プレビューを閉じる" : "Close preview"}</button>
     </div> : null}
   </section>;

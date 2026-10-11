@@ -5,7 +5,7 @@ import { relaysFromEnv } from "@/src/relays";
 import { nextSessionUpdatedAt, normalizeSession } from "@/src/session-validation";
 import { hexToBytes, readServicePrivateKey } from "@/src/server/service-key";
 import { querySessionRelays } from "@/src/server/session-relay-query";
-import type { ZapBattleSession, ZapBattleSessionSummary } from "@/src/types";
+import type { SessionMode, ZapBattleSession, ZapBattleSessionSummary } from "@/src/types";
 
 const GLOBAL_KEY = "__zapBattleSessions";
 const DELETED_KEY = "__zapBattleDeletedSessions";
@@ -110,7 +110,7 @@ export async function saveSession(session: ZapBattleSession): Promise<ZapBattleS
   return session;
 }
 
-export async function ensureSession(sessionId: string): Promise<ZapBattleSession> {
+export async function ensureSession(sessionId: string, mode: SessionMode = "battle"): Promise<ZapBattleSession> {
   const lookup = await lookupSession(sessionId);
   if (lookup.state === "found") return lookup.session;
   if (lookup.state === "unavailable") throw new SessionStorageUnavailableError();
@@ -118,6 +118,8 @@ export async function ensureSession(sessionId: string): Promise<ZapBattleSession
   const session = normalizeSession({
     ...mockSession,
     id: sessionId,
+    mode,
+    title: mode === "solo" ? "Solo Zap" : mockSession.title,
     ...(previousUpdatedAt ? { updatedAt: nextSessionUpdatedAt(previousUpdatedAt) } : {})
   }, sessionId);
   await saveSession(session);
@@ -359,6 +361,7 @@ function sessionSummary(session: ZapBattleSession): ZapBattleSessionSummary {
   return {
     id: session.id,
     title: session.title,
+    mode: session.mode,
     status: session.status,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt

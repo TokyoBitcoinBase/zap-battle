@@ -1,6 +1,6 @@
 # Zap Battle
 
-Zap Battle is an event scoreboard for dance battles and live competitions. Audience members scan a Lightning QR code to send Zaps to either contestant, and the screen updates totals, zap count, recent Zap history, animations, and final results in realtime.
+Zap Battle is a live Lightning Zap scoreboard for events. Use Battle mode for two-player competitions, or Solo mode to support one performer at a comedy show, concert, or livestream. Audience members scan a Lightning QR code to send Zaps, and the screen updates totals, Zap count, recent history, animations, and final results in realtime.
 
 The app is designed to be deployed on Vercel and embedded in WordPress with an iframe. WordPress only displays the public page; the web app and API live on Vercel.
 
@@ -13,6 +13,7 @@ https://zap-battle.tokyobitcoin.space
 ## Features
 
 - Two-player Zap battle display
+- Solo mode with one performer, one QR code, and no competitive or winner display
 - Event-specific Battle IDs
 - Saved Battle URL list after Admin Token verification
 - Operator mode on the display page via `?admin=1`
@@ -133,7 +134,7 @@ https://zap-battle.example.com/zap-battle/tokyo-final/display?admin=1
 
 1. Set Vercel environment variables.
 2. Open the top page and enter the Admin Token.
-3. Create a Battle ID such as `tokyo-final`.
+3. Choose Battle or Solo mode and create an event ID such as `tokyo-final` or `comedy-live`.
 4. Open the operator display.
 5. Enter contestants, Lightning Addresses, optional Nostr public keys, and battle time.
    Use only public nicknames or stage names for contestant display names.
@@ -141,6 +142,21 @@ https://zap-battle.example.com/zap-battle/tokyo-final/display?admin=1
 7. On event day, press `Start`.
 8. Press `End` to capture and show Final Result.
 9. Press `Reset` before reusing the same Battle ID.
+
+### Solo mode
+
+Select **Solo — support one performer** when creating an event, or select it in
+the admin setup before starting. Enter only the performer's public display name,
+Lightning Address and Nostr public key; the existing temporary-profile option is
+also available. Solo mode shows one QR code, received sats, Zap count, average
+amount, recent messages and a final thank-you screen. Timer, pause/resume, themes
+and Zap effects work in both modes.
+
+The mode is saved with the session, so the public URL needs no mode query
+parameter. Existing sessions without a mode remain two-player battles. Clear
+results before changing a started session's mode; a full reset preserves its
+current mode. Solo mode does not issue QR codes or invoices for the inactive
+second participant and excludes that participant from receipt queries and totals.
 
 ## URL Deactivation
 

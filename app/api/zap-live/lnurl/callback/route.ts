@@ -14,6 +14,7 @@ import { readServicePrivateKey, readServicePubkey } from "@/src/server/service-k
 import { ensureSession } from "@/src/server/session-store";
 import { zapRequestRelaysFromEnv } from "@/src/relays";
 import type { BattleSide } from "@/src/types";
+import { isActiveSide } from "@/src/session-mode";
 
 type ZapLiveTarget = {
   sessionId: string;
@@ -29,8 +30,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ status: "ERROR", reason: "Invalid amount." }, { status: 400 });
     }
     const session = await ensureSession(target.sessionId);
+    if (!isActiveSide(session, target.side)) throw new Error("This recipient is not active in solo mode.");
     if (session.status !== "draft" && session.status !== "live") {
-      return NextResponse.json({ status: "ERROR", reason: "This battle is not live." }, { status: 409 });
+      return NextResponse.json({ status: "ERROR", reason: "This session is not live." }, { status: 409 });
     }
     const contestant = session.contestants[target.side];
     const lightningAddress = contestant.lightningAddress;

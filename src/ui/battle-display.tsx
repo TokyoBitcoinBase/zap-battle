@@ -20,6 +20,8 @@ import {
 import type { BattleSide, Contestant, ZapBattleSession, ZapReceiptItem } from "@/src/types";
 import { BattleAdminEditor } from "@/src/ui/battle-admin-editor";
 import { receiptEventAcceptedUntil } from "@/src/zap-receipt-window";
+import { isActiveSide, sessionMode } from "@/src/session-mode";
+import { soloStats } from "@/src/solo-stats";
 
 type CelebrationQueueItem = {
   special: boolean;
@@ -79,7 +81,13 @@ const COPY = {
     ended: "Ended",
     live: "Live",
     actionFailed: "Action failed",
-    timeLeft: "Time Left"
+    timeLeft: "Time Left",
+    solo: "Solo Zap",
+    soloEndConfirm: "End this Zap session now?",
+    soloNoZaps: "No Zaps in this session.",
+    soloThanks: "Thank you for your support",
+    scanToSupport: "Scan to send a Zap",
+    performer: "Performer"
   },
   ja: {
     admin: "管理",
@@ -126,7 +134,13 @@ const COPY = {
     ended: "終了しました",
     live: "ライブ",
     actionFailed: "操作に失敗しました",
-    timeLeft: "残り時間"
+    timeLeft: "残り時間",
+    solo: "Solo Zap",
+    soloEndConfirm: "Zapの受付を終了しますか？",
+    soloNoZaps: "この受付のZapはありません。",
+    soloThanks: "応援ありがとうございました",
+    scanToSupport: "QRを読み取ってZapで応援",
+    performer: "出演者"
   }
 } satisfies Record<Locale, Record<string, string>>;
 
@@ -146,6 +160,7 @@ export function BattleDisplay({
   onSessionDelete?(message: string): void;
   session: ZapBattleSession;
 }) {
+  const solo = sessionMode(session) === "solo";
   const [items, setItems] = useState<ZapReceiptItem[]>([]);
   const { soundEnabled, setSoundEnabled } = useBattleSound();
   const [locale, setLocale] = useState<Locale>("en");
@@ -175,15 +190,17 @@ export function BattleDisplay({
   const [celebrationAmount, setCelebrationAmount] = useState<number | undefined>(undefined);
   const persistedFinalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : [];
   const displayItems = useMemo(
-    () => mergeZapReceiptItems([...persistedFinalItems, ...items]),
-    [items, persistedFinalItems]
+    () => mergeZapReceiptItems([...persistedFinalItems, ...items]).filter((item) => isActiveSide(session, item.side)),
+    [items, persistedFinalItems, session.mode]
   );
   const leftFeedItems = displayItems.filter((item) => item.side === "left").slice(0, FEED_ITEMS_PER_SIDE);
   const rightFeedItems = displayItems.filter((item) => item.side === "right").slice(0, FEED_ITEMS_PER_SIDE);
   const copy = COPY[locale];
   const showDemoControls = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEMO_ZAPS === "true";
 
-  const leftStats = useMemo(() => calculateStats(displayItems, "left"), [displayItems]);
+  const leftStats = useMemo(() => solo
+    ? soloStats(displayItems, session.status === "ended" ? session.finalResult?.left : undefined)
+    : calculateStats(displayItems, "left"), [displayItems, solo, session.status, session.finalResult?.left]);
   const rightStats = useMemo(() => calculateStats(displayItems, "right"), [displayItems]);
   const total = leftStats.totalSats + rightStats.totalSats;
   const leftRatio = total > 0 ? Math.round((leftStats.totalSats / total) * 100) : 50;
@@ -386,6 +403,7 @@ export function BattleDisplay({
   }, [
     session.contestants.left.nostrPubkey,
     session.contestants.right.nostrPubkey,
+    session.mode,
     session.endsAt,
     session.graceSeconds,
     session.id,
@@ -465,7 +483,7 @@ export function BattleDisplay({
     setCelebrationTier(next.tier);
     setCelebrationAmount(next.amountSats);
     setSpecialCelebration(next.special);
-    setConfetti(createConfetti(next.side, next.tier));
+    setConfetti(createConfetti(solo ? "center" : next.side, next.tier));
     setCelebrating(true);
     if (next.withSound && soundEnabledRef.current) {
       if (next.side === "center") void playTimeUpSound();
@@ -506,7 +524,7 @@ export function BattleDisplay({
   }
 
   async function endBattle() {
-    const confirmed = window.confirm(copy.endConfirm);
+    const confirmed = window.confirm(solo ? copy.soloEndConfirm : copy.endConfirm);
     if (!confirmed) return;
     await finalizeBattle();
   }
@@ -519,7 +537,7 @@ export function BattleDisplay({
       : [];
     const finalReceipts = mergeZapReceiptItems([...items, ...receipts]);
     await postAdminAction("end", {
-      finalResult: createFinalResult(finalReceipts)
+      finalResult: createFinalResult(finalReceipts.filter((item) => isActiveSide(session, item.side)), solo)
     });
   }
 
@@ -535,7 +553,7 @@ export function BattleDisplay({
       });
       const json = await response.json().catch(() => ({})) as Partial<SessionResponse>;
       if (!response.ok) {
-        setAdminActionStatus(action === "start" && json.errors?.length ? formatStartErrors(json.errors, copy) : copy.actionFailed);
+        setAdminActionStatus(action === "start" && json.errors?.length ? formatStartErrors(json.errors, copy, solo) : copy.actionFailed);
         return;
       }
       if (!json.session) {
@@ -553,17 +571,18 @@ export function BattleDisplay({
   }
 
   return (
-    <main className={`battle-shell ${session.theme ? "battle-themed" : ""}`} style={session.theme ? themeStyle(session.theme) : undefined}>
+    <main className={`battle-shell ${solo ? "solo-shell" : ""} ${session.theme ? "battle-themed" : ""}`} style={session.theme ? themeStyle(session.theme) : undefined}>
       {celebrating && specialCelebration && celebrationAmount && celebrationSide !== "center" ? <SpecialZapCelebration key={celebrationNonce} amount={celebrationAmount} side={celebrationSide} recipient={displayContestantName(session.contestants[celebrationSide])} locale={locale} /> : null}
-      {celebrating && !specialCelebration ? <ZapCelebration key={celebrationNonce} side={celebrationSide} tier={celebrationTier} amount={celebrationAmount} confetti={confetti} locale={locale} /> : null}
+      {celebrating && !specialCelebration ? <ZapCelebration key={celebrationNonce} side={celebrationSide} tier={celebrationTier} amount={celebrationAmount} confetti={confetti} locale={locale} solo={solo} /> : null}
 
       <header className="battle-top">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">⚡</span>
-          <h1>Zap Battle</h1>
+          <h1>{solo ? copy.solo : "Zap Battle"}</h1>
         </div>
 
         <div className="battle-head-center">
+          {solo ? <p className="solo-event-title">{session.title}</p> : <>
           <span className="vs-title">V S</span>
           <div className="balance" aria-hidden="true">
             <span style={{ width: `${leftRatio}%` }} />
@@ -575,6 +594,7 @@ export function BattleDisplay({
                 ? `${displayContestantName(session.contestants.left)} ${copy.leads}`
                 : `${displayContestantName(session.contestants.right)} ${copy.leads}`}
           </p>
+          </>}
           <BattleTimer session={session} copy={copy} />
         </div>
 
@@ -639,9 +659,9 @@ export function BattleDisplay({
               <button className="button primary" type="button" onClick={() => addDemoZap("left")}>
                 {copy.demoZap}: {displayContestantName(session.contestants.left)}
               </button>
-              <button className="button primary" type="button" onClick={() => addDemoZap("right")}>
+              {!solo ? <button className="button primary" type="button" onClick={() => addDemoZap("right")}>
                 {copy.demoZap}: {displayContestantName(session.contestants.right)}
-              </button>
+              </button> : null}
             </div>
           ) : null}
         </div>
@@ -669,7 +689,23 @@ export function BattleDisplay({
         </div>
       ) : null}
 
-      {session.status === "ended" ? (
+      {solo ? (
+        <>
+          {session.status === "ended" ? (
+            <section className="solo-final" aria-label={copy.finalResult}>
+              <p className="solo-thanks">{copy.soloThanks}</p>
+              <FinalSideCard contestant={session.contestants.left} copy={copy} stats={leftStats} winner={false} solo />
+            </section>
+          ) : (
+            <section className="arena solo-arena" aria-label={copy.solo}>
+              <ContestantStage sessionId={session.id} contestant={session.contestants.left} copy={copy} stats={leftStats} solo />
+            </section>
+          )}
+          <ZapFeed copy={copy} emptyText={session.status === "ended" ? copy.soloNoZaps : copy.waiting}
+            left={session.contestants.left} leftItems={leftFeedItems} right={session.contestants.right} rightItems={[]}
+            title={session.status === "ended" ? copy.finalZaps : copy.realtimeZaps} variant={session.status === "ended" ? "final" : undefined} solo />
+        </>
+      ) : session.status === "ended" ? (
         <>
           <FinalResultStage
             left={session.contestants.left}
@@ -729,7 +765,8 @@ function ZapFeed({
   right,
   rightItems,
   title,
-  variant
+  variant,
+  solo = false
 }: {
   copy: typeof COPY[Locale];
   emptyText: string;
@@ -739,13 +776,14 @@ function ZapFeed({
   rightItems: ZapReceiptItem[];
   title: string;
   variant?: "final";
+  solo?: boolean;
 }) {
   return (
     <section className={`feed-dock ${variant === "final" ? "final" : ""}`} aria-label={title}>
       <h2>{title}</h2>
       <div className="feed-lanes">
         <FeedLane contestant={left} copy={copy} emptyText={emptyText} items={leftItems} />
-        <FeedLane contestant={right} copy={copy} emptyText={emptyText} items={rightItems} />
+        {!solo ? <FeedLane contestant={right} copy={copy} emptyText={emptyText} items={rightItems} /> : null}
       </div>
     </section>
   );
@@ -832,16 +870,18 @@ function FinalSideCard({
   contestant,
   copy,
   stats,
-  winner
+  winner,
+  solo = false
 }: {
   contestant: Contestant;
   copy: typeof COPY[Locale];
   stats: ReturnType<typeof calculateStats>;
   winner: boolean;
+  solo?: boolean;
 }) {
   return (
     <article className={`final-card ${contestant.side} ${winner ? "winner" : ""}`}>
-      <span>{winner ? copy.winner : copy.finalScore}</span>
+      <span>{solo ? copy.totalReceived : winner ? copy.winner : copy.finalScore}</span>
       <ContestantAvatar contestant={contestant} />
       <h3>{displayContestantName(contestant)}</h3>
       <strong>{stats.totalSats.toLocaleString()}</strong>
@@ -858,12 +898,14 @@ function ContestantStage({
   sessionId,
   contestant,
   copy,
-  stats
+  stats,
+  solo = false
 }: {
   sessionId: string;
   contestant: Contestant;
   copy: typeof COPY[Locale];
   stats: ReturnType<typeof calculateStats>;
+  solo?: boolean;
 }) {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrStatus, setQrStatus] = useState("");
@@ -906,8 +948,9 @@ function ContestantStage({
     <article className={`side ${contestant.side}`}>
       <div className="player-head">
         <ContestantAvatar contestant={contestant} />
-        <h2>{displayContestantName(contestant)}</h2>
+        <h2>{contestant.displayName.trim() || (solo ? copy.performer : displayContestantName(contestant))}</h2>
         <div className="score-mini">
+          {solo ? <p className="solo-total-label">{copy.totalReceived}</p> : null}
           <div>
             <strong>{stats.totalSats.toLocaleString()}</strong>
             <small>sats</small>
@@ -917,6 +960,7 @@ function ContestantStage({
       </div>
 
       <div className="qr-zone">
+        {solo ? <p className="solo-qr-label">{copy.scanToSupport}</p> : null}
         <div className="qr-frame">
           {qrDataUrl ? <img src={qrDataUrl} alt={`${displayContestantName(contestant)} QR`} /> : null}
           {!qrDataUrl ? <span className="qr-empty">{qrStatus || "QR"}</span> : null}
@@ -948,7 +992,7 @@ function BattleTimer({ session, copy }: { session: ZapBattleSession; copy: typeo
 }
 
 async function qrPayloadForContestant(sessionId: string, contestant: Contestant): Promise<string> {
-  if (!contestant.lightningAddress.trim()) return `lightning:${displayContestantName(contestant)}`;
+  if (!contestant.lightningAddress.trim()) throw new Error("Lightning Address not set.");
   const response = await fetch("/api/zap-live/token", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1011,13 +1055,13 @@ function calculateStats(items: ZapReceiptItem[], side: BattleSide) {
   };
 }
 
-function createFinalResult(receipts: ZapReceiptItem[]) {
+function createFinalResult(receipts: ZapReceiptItem[], solo = false) {
   const normalized = receipts
     .slice()
     .sort((a, b) => b.createdAt - a.createdAt);
   const left = calculateStats(normalized, "left");
   const right = calculateStats(normalized, "right");
-  const winner = left.totalSats === right.totalSats
+  const winner = solo ? "solo" : left.totalSats === right.totalSats
     ? "tied"
     : left.totalSats > right.totalSats
       ? "left"
@@ -1061,10 +1105,10 @@ function adminHeaders(adminToken: string): HeadersInit {
   };
 }
 
-function formatStartErrors(errors: string[], copy: typeof COPY[Locale]): string {
+function formatStartErrors(errors: string[], copy: typeof COPY[Locale], solo = false): string {
   return errors.map((error) => {
     const side = error.startsWith("left ") ? "left" : error.startsWith("right ") ? "right" : "";
-    const sideLabel = side === "left" ? "PLAYER 1" : side === "right" ? "PLAYER 2" : "";
+    const sideLabel = solo ? copy.performer : side === "left" ? "PLAYER 1" : side === "right" ? "PLAYER 2" : "";
     if (error.includes("display name is required")) {
       return copy.missingDisplayName.replace("{side}", sideLabel || "Player");
     }
