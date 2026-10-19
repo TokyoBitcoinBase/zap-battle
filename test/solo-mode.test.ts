@@ -15,6 +15,7 @@ import { fetchZapReceiptsOnce, parseZapReceipt, subscribeToZapReceipts } from ".
 import { ensureSession, listSessions, saveSession } from "../src/server/session-store";
 import { mockSession } from "../src/mock-session";
 import { soloStats } from "../src/solo-stats";
+import { createContestantQrLoader } from "../src/contestant-qr";
 
 const id = "solo-test";
 const context = { params: Promise.resolve({ sessionId: id }) };
@@ -119,6 +120,60 @@ test("solo's wallet metadata and callback point to the one active performer", as
   assert.equal(new URL(metadata.callback).searchParams.get("side"), "left");
 });
 
+for (const mode of ["solo", "battle"] as const) {
+  test(`${mode} reuses the same QR through start, pause, end, restart and reload`, async () => {
+    const initial = { ...soloSession(), mode };
+    initial.contestants.right.displayName = "Second performer";
+    await saveSession(initial);
+    let walletCalls = 0;
+    let now = 2_000_000_000_000;
+    mock.method(Date, "now", () => now);
+    mock.method(globalThis, "fetch", async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (url === "/api/zap-live/token") {
+        return token(request(url, "POST", JSON.parse(String(init?.body))));
+      }
+      walletCalls += 1;
+      return new Response(JSON.stringify({ tag: "payRequest", callback: "https://wallet.example/callback", minSendable: 1000, maxSendable: 1000000, metadata: "[]" }));
+    });
+    const loadQr = createContestantQrLoader();
+    const contestants = mode === "solo" ? [initial.contestants.left] : [initial.contestants.left, initial.contestants.right];
+    const originalQrs = await Promise.all(contestants.map(contestant => loadQr(id, contestant)));
+    originalQrs.forEach(qr => assert.match(qr, /^data:image\/png;base64,/));
+    if (mode === "battle") assert.notEqual(originalQrs[0], originalQrs[1]);
+    for (const action of [start, pause, pause, end, start]) {
+      now += 10_000;
+      const response = await action(request(`/api/zap-live/sessions/${id}/action`), context);
+      assert.equal(response.status, 200);
+      const { session } = await response.json();
+      for (const [index, contestant] of contestants.entries()) {
+        assert.equal(await loadQr(session.id, session.contestants[contestant.side]), originalQrs[index]);
+      }
+    }
+    assert.equal(walletCalls, contestants.length, "lifecycle changes must not request another QR");
+    const reloadQr = createContestantQrLoader();
+    for (const [index, contestant] of contestants.entries()) {
+      assert.equal(await reloadQr(id, contestant), originalQrs[index], "a page reload must encode the same fixed URL");
+    }
+  });
+}
+
+test("a failed QR request can be retried and a different event cannot reuse the previous event's QR", async () => {
+  const loadQr = createContestantQrLoader();
+  const contestant = soloSession().contestants.left;
+  let requests = 0;
+  mock.method(globalThis, "fetch", async (_url: RequestInfo | URL, init?: RequestInit) => {
+    requests += 1;
+    if (requests === 1) return new Response(JSON.stringify({ error: "temporarily_unavailable" }), { status: 503 });
+    const { sessionId, side } = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({ lnurlPayUrl: `https://example.com/l?s=${sessionId}&side=${side}` }));
+  });
+  await assert.rejects(loadQr(id, contestant), /temporarily_unavailable/);
+  const firstQr = await loadQr(id, contestant);
+  assert.equal(await loadQr(id, contestant), firstQr);
+  assert.notEqual(await loadQr("another-event", contestant), firstQr);
+  assert.equal(requests, 3);
+});
+
 test("solo aggregates signed receipts for its performer and excludes right or unrelated recipients", () => {
   const session = { ...soloSession(), status: "live" as const, startsAt: 1000, endsAt: 1600 };
   const receipt = (side: string, pubkey = recipientPubkey) => {
@@ -137,8 +192,8 @@ test("solo relay catch-up and live subscription query only the active recipient"
   const subscribe = mock.method(SimplePool.prototype, "subscribe", () => ({ close() {} }));
   await fetchZapReceiptsOnce({ session });
   const stop = subscribeToZapReceipts({ session, onReceipt() {} });
-  assert.deepEqual(query.mock.calls[0].arguments[1]["#p"], [recipientPubkey]);
-  assert.deepEqual(subscribe.mock.calls[0].arguments[1]["#p"], [recipientPubkey]);
+  assert.deepEqual(query.mock.calls[0].arguments[1]?.["#p"], [recipientPubkey]);
+  assert.deepEqual(subscribe.mock.calls[0].arguments[1]?.["#p"], [recipientPubkey]);
   stop();
 });
 

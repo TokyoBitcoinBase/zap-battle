@@ -8,10 +8,9 @@ import { ZapCelebration } from "@/src/ui/zap-celebration";
 import { playZapSound, playTimeUpSound, primeZapSound, playSoundEnabledCue } from "@/src/zap-audio";
 import { useBattleSound } from "@/src/ui/use-battle-sound";
 import { TIME_UP_DURATION_MS } from "@/src/time-up";
-import QRCode from "qrcode";
+import { createContestantQrLoader, type ContestantQrLoader } from "@/src/contestant-qr";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
-import { encodeLnurl } from "@/src/lnurl";
 import {
   fetchZapReceiptsFromServer,
   fetchZapReceiptsOnce,
@@ -161,6 +160,7 @@ export function BattleDisplay({
   session: ZapBattleSession;
 }) {
   const solo = sessionMode(session) === "solo";
+  const [loadContestantQr] = useState(() => createContestantQrLoader());
   const [items, setItems] = useState<ZapReceiptItem[]>([]);
   const { soundEnabled, setSoundEnabled } = useBattleSound();
   const [locale, setLocale] = useState<Locale>("en");
@@ -698,7 +698,7 @@ export function BattleDisplay({
             </section>
           ) : (
             <section className="arena solo-arena" aria-label={copy.solo}>
-              <ContestantStage sessionId={session.id} contestant={session.contestants.left} copy={copy} stats={leftStats} solo />
+              <ContestantStage sessionId={session.id} contestant={session.contestants.left} copy={copy} stats={leftStats} loadQr={loadContestantQr} solo />
             </section>
           )}
           <ZapFeed copy={copy} emptyText={session.status === "ended" ? copy.soloNoZaps : copy.waiting}
@@ -731,12 +731,14 @@ export function BattleDisplay({
           <section className="arena" aria-label="Zap Battle scoreboard">
             <ContestantStage
               sessionId={session.id}
+              loadQr={loadContestantQr}
               contestant={session.contestants.left}
               copy={copy}
               stats={leftStats}
             />
             <ContestantStage
               sessionId={session.id}
+              loadQr={loadContestantQr}
               contestant={session.contestants.right}
               copy={copy}
               stats={rightStats}
@@ -896,12 +898,14 @@ function FinalSideCard({
 
 function ContestantStage({
   sessionId,
+  loadQr,
   contestant,
   copy,
   stats,
   solo = false
 }: {
   sessionId: string;
+  loadQr: ContestantQrLoader;
   contestant: Contestant;
   copy: typeof COPY[Locale];
   stats: ReturnType<typeof calculateStats>;
@@ -911,25 +915,15 @@ function ContestantStage({
   const [qrStatus, setQrStatus] = useState("");
   const qrContestant = useMemo(() => ({
     side: contestant.side,
-    displayName: contestant.displayName,
     lightningAddress: contestant.lightningAddress
-  }), [contestant.side, contestant.displayName, contestant.lightningAddress]);
+  }), [contestant.side, contestant.lightningAddress]);
 
   useEffect(() => {
     let cancelled = false;
     async function createQr() {
       try {
         setQrStatus("");
-        const payload = await qrPayloadForContestant(sessionId, qrContestant);
-        const dataUrl = await QRCode.toDataURL(payload, {
-          errorCorrectionLevel: "L",
-          margin: 2,
-          width: 640,
-          color: {
-            dark: "#050505",
-            light: "#ffffff"
-          }
-        });
+        const dataUrl = await loadQr(sessionId, qrContestant);
         if (!cancelled) setQrDataUrl(dataUrl);
       } catch (error) {
         if (!cancelled) {
@@ -942,7 +936,7 @@ function ContestantStage({
     return () => {
       cancelled = true;
     };
-  }, [qrContestant, sessionId]);
+  }, [loadQr, qrContestant, sessionId]);
 
   return (
     <article className={`side ${contestant.side}`}>
@@ -989,22 +983,6 @@ function BattleTimer({ session, copy }: { session: ZapBattleSession; copy: typeo
       <strong>{timer.value}</strong>
     </div>
   );
-}
-
-async function qrPayloadForContestant(sessionId: string, contestant: Contestant): Promise<string> {
-  if (!contestant.lightningAddress.trim()) throw new Error("Lightning Address not set.");
-  const response = await fetch("/api/zap-live/token", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      sessionId,
-      side: contestant.side
-    })
-  });
-  const json = await response.json().catch(() => ({})) as { lnurlPayUrl?: string; reason?: string; error?: string };
-  if (!response.ok) throw new Error(json.reason || json.error || "Failed to create LNURL token.");
-  if (!json.lnurlPayUrl) throw new Error("LNURL token response is missing lnurlPayUrl.");
-  return `lightning:${encodeLnurl(json.lnurlPayUrl)}`;
 }
 
 function timerState(session: ZapBattleSession, now: number, copy: typeof COPY[Locale]): { label: string; value: string; phase: string } {

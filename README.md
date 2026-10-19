@@ -152,6 +152,10 @@ also available. Solo mode shows one QR code, received sats, Zap count, average
 amount, recent messages and a final thank-you screen. Timer, pause/resume, themes
 and Zap effects work in both modes.
 
+The QR code is fixed for each event ID and recipient side, just as in Battle
+mode. Starting, ending and restarting the same event does not change its QR code;
+the display reuses the generated image when returning from the final result.
+
 The mode is saved with the session, so the public URL needs no mode query
 parameter. Existing sessions without a mode remain two-player battles. Clear
 results before changing a started session's mode; a full reset preserves its
