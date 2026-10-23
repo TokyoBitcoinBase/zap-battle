@@ -4,9 +4,9 @@ import { createPreviewAudioChannel, playSpecialZapSound, playTimeUpSound, playZa
 import { SPECIAL_ZAP_ROLL_STEP_MS, specialZapRevealMs } from "../src/special-zap";
 import { TIME_UP_DURATION_MS, TIME_UP_ENTER_MS, TIME_UP_FADE_MS, TIME_UP_HOLD_MS } from "../src/time-up";
 
-test("time-up leaves six full seconds between entrance and fade", () => {
-  assert.equal(TIME_UP_DURATION_MS - TIME_UP_ENTER_MS - TIME_UP_FADE_MS, 6000);
-  assert.equal(TIME_UP_HOLD_MS, 6000);
+test("time-up shows a brief two-second notice", () => {
+  assert.equal(TIME_UP_DURATION_MS, 2000);
+  assert.equal(TIME_UP_DURATION_MS - TIME_UP_ENTER_MS - TIME_UP_FADE_MS, TIME_UP_HOLD_MS);
 });
 
 test("special audio rolls with the digits and reserves its impact for the final lock", async () => {

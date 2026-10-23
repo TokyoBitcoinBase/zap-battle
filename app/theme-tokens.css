@@ -92,9 +92,11 @@
   }
 }
 :root {
-  --timeup-night: #140812;
-  --timeup-red: #ff6a70;
-  --timeup-white: #fff8ef;
-  --timeup-halo: #9e223766;
-  --timeup-stripe: #ff6a7014;
+  --timeup-background: var(--ui-surface);
+  --timeup-text: var(--ui-danger);
+  --timeup-font: var(--ui-display-font);
+  --timeup-size: clamp(20px, 3vw, 28px);
+  --timeup-inset: var(--theme-space);
+  --timeup-radius: var(--ui-control-radius);
+  --timeup-shadow: var(--ui-shadow);
 }

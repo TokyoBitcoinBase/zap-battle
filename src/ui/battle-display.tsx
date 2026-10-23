@@ -3,8 +3,9 @@
 import { safeImageUrl, themeStyle } from "@/src/battle-theme";
 import { isSpecialZap, normalizeSpecialZapThreshold, specialZapDurationMs } from "@/src/special-zap";
 import { SpecialZapCelebration } from "@/src/ui/special-zap-celebration";
-import { createConfetti, DEFAULT_ZAP_CELEBRATION_TIER, ZAP_CELEBRATION_TIERS, zapCelebrationTier, type CelebrationTarget, type ConfettiPiece, type ZapCelebrationTier } from "@/src/zap-celebration";
+import { createConfetti, DEFAULT_ZAP_CELEBRATION_TIER, ZAP_CELEBRATION_TIERS, zapCelebrationTier, type ConfettiPiece, type ZapCelebrationTier } from "@/src/zap-celebration";
 import { ZapCelebration } from "@/src/ui/zap-celebration";
+import { TimeUpCelebration } from "@/src/ui/time-up-celebration";
 import { createPreviewAudioChannel, playZapSound, playTimeUpSound, playSpecialZapSound, primeZapSound, playSoundEnabledCue } from "@/src/zap-audio";
 import { useBattleSound } from "@/src/ui/use-battle-sound";
 import { LightningMark } from "@/src/ui/lightning-mark";
@@ -26,7 +27,7 @@ import { soloStats } from "@/src/solo-stats";
 type CelebrationQueueItem = {
   special: boolean;
   amountSats?: number;
-  side: CelebrationTarget;
+  side: BattleSide;
   tier: ZapCelebrationTier;
   withSound: boolean;
 };
@@ -176,6 +177,7 @@ export function BattleDisplay({
   specialThresholdRef.current = normalizeSpecialZapThreshold(session.specialZapThresholdSats);
   const [specialCelebration, setSpecialCelebration] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
+  const [timeUpVisible, setTimeUpVisible] = useState(false);
   const [celebrationNonce, setCelebrationNonce] = useState(0);
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
   const seenReceiptIdsRef = useRef<Set<string>>(new Set());
@@ -187,9 +189,10 @@ export function BattleDisplay({
   const soundEnabledRef = useRef(false);
   const specialAudioRef = useRef<ReturnType<typeof createPreviewAudioChannel>>(null);
   const celebrationTimerRef = useRef<number | undefined>(undefined);
+  const timeUpTimerRef = useRef<number | undefined>(undefined);
   const celebrationQueueRef = useRef<CelebrationQueueItem[]>([]);
   const celebrationActiveRef = useRef(false);
-  const [celebrationSide, setCelebrationSide] = useState<CelebrationTarget>("center");
+  const [celebrationSide, setCelebrationSide] = useState<BattleSide>("left");
   const [celebrationTier, setCelebrationTier] = useState<ZapCelebrationTier>(DEFAULT_ZAP_CELEBRATION_TIER);
   const [celebrationAmount, setCelebrationAmount] = useState<number | undefined>(undefined);
   const persistedFinalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : [];
@@ -236,17 +239,20 @@ export function BattleDisplay({
   useEffect(() => {
     return () => {
       window.clearTimeout(celebrationTimerRef.current);
+      window.clearTimeout(timeUpTimerRef.current);
       specialAudioRef.current?.stop();
     };
   }, []);
 
   useEffect(() => {
     window.clearTimeout(celebrationTimerRef.current);
+    window.clearTimeout(timeUpTimerRef.current);
     specialAudioRef.current?.stop();
     specialAudioRef.current = null;
     celebrationQueueRef.current = [];
     celebrationActiveRef.current = false;
     setCelebrating(false);
+    setTimeUpVisible(false);
     setConfetti([]);
   }, [session.id, session.startsAt]);
 
@@ -273,15 +279,15 @@ export function BattleDisplay({
     const timeUpKey = `${session.id}:${startsAt}`;
     const checkTimeUp = () => {
       if (timeUpSessionRef.current === timeUpKey) return;
-      const endAt = startsAt + session.durationSeconds;
+      const endAt = session.endsAt ?? startsAt + session.durationSeconds;
       if (currentSeconds() < endAt) return;
       timeUpSessionRef.current = timeUpKey;
-      enqueueCelebration("center", soundEnabledRef.current);
+      showTimeUp();
     };
     checkTimeUp();
     const intervalId = window.setInterval(checkTimeUp, 250);
     return () => window.clearInterval(intervalId);
-  }, [session.durationSeconds, session.id, session.startsAt, session.status, soundEnabled]);
+  }, [session.durationSeconds, session.endsAt, session.id, session.startsAt, session.status]);
 
   useEffect(() => {
     const previous = previousLifecycleRef.current;
@@ -290,7 +296,7 @@ export function BattleDisplay({
     const timeUpKey = `${session.id}:${session.startsAt ?? "not-started"}`;
     if (timeUpSessionRef.current === timeUpKey) return;
     timeUpSessionRef.current = timeUpKey;
-    enqueueCelebration("center", soundEnabledRef.current);
+    showTimeUp();
   }, [session.id, session.startsAt, session.status]);
 
   useEffect(() => {
@@ -468,16 +474,22 @@ export function BattleDisplay({
     runNextCelebration();
   }
 
-  function enqueueCelebration(side: CelebrationTarget, withSound: boolean, amountSats?: number) {
+  function showTimeUp() {
+    window.clearTimeout(timeUpTimerRef.current);
+    setTimeUpVisible(true);
+    if (soundEnabledRef.current) void playTimeUpSound();
+    timeUpTimerRef.current = window.setTimeout(() => setTimeUpVisible(false), TIME_UP_DURATION_MS);
+  }
+
+  function enqueueCelebration(side: BattleSide, withSound: boolean, amountSats?: number) {
     const next: CelebrationQueueItem = {
-      special: side !== "center" && isSpecialZap(amountSats, specialThresholdRef.current),
+      special: isSpecialZap(amountSats, specialThresholdRef.current),
       amountSats,
       side,
       tier: amountSats ? zapCelebrationTier(amountSats) : DEFAULT_ZAP_CELEBRATION_TIER,
       withSound
     };
-    if (side === "center") celebrationQueueRef.current.unshift(next);
-    else celebrationQueueRef.current.push(next);
+    celebrationQueueRef.current.push(next);
     runNextCelebration();
   }
 
@@ -496,8 +508,7 @@ export function BattleDisplay({
     setConfetti(createConfetti(solo ? "center" : next.side, next.tier));
     setCelebrating(true);
     if (next.withSound && soundEnabledRef.current) {
-      if (next.side === "center") void playTimeUpSound();
-      else if (next.special && next.amountSats) {
+      if (next.special && next.amountSats) {
         const channel = createPreviewAudioChannel();
         specialAudioRef.current = channel;
         if (channel) void playSpecialZapSound(next.amountSats, channel.destination);
@@ -514,7 +525,7 @@ export function BattleDisplay({
       if (celebrationQueueRef.current.length > 0) {
         celebrationTimerRef.current = window.setTimeout(runNextCelebration, 80);
       }
-    }, next.side === "center" ? TIME_UP_DURATION_MS : next.special && next.amountSats ? specialZapDurationMs(next.amountSats) : tier.durationMs);
+    }, next.special && next.amountSats ? specialZapDurationMs(next.amountSats) : tier.durationMs);
   }
 
   function toggleLocale() {
@@ -588,8 +599,9 @@ export function BattleDisplay({
 
   return (
     <main className={`battle-shell ${solo ? "solo-shell" : ""} ${session.theme ? "battle-themed" : ""}`} style={session.theme ? themeStyle(session.theme) : undefined}>
-      {celebrating && specialCelebration && celebrationAmount && celebrationSide !== "center" ? <SpecialZapCelebration key={celebrationNonce} amount={celebrationAmount} side={celebrationSide} recipient={displayContestantName(session.contestants[celebrationSide])} locale={locale} /> : null}
-      {celebrating && !specialCelebration ? <ZapCelebration key={celebrationNonce} side={celebrationSide} tier={celebrationTier} amount={celebrationAmount} confetti={confetti} locale={locale} solo={solo} /> : null}
+      {celebrating && specialCelebration && celebrationAmount ? <SpecialZapCelebration key={celebrationNonce} amount={celebrationAmount} side={celebrationSide} recipient={displayContestantName(session.contestants[celebrationSide])} locale={locale} /> : null}
+      {celebrating && !specialCelebration ? <ZapCelebration key={celebrationNonce} side={celebrationSide} tier={celebrationTier} amount={celebrationAmount} confetti={confetti} solo={solo} /> : null}
+      {timeUpVisible ? <TimeUpCelebration /> : null}
 
       <header className="battle-top">
         <div className="brand">

@@ -2,8 +2,8 @@
 import { TimeUpCelebration } from "@/src/ui/time-up-celebration";
 import type { CSSProperties } from "react";
 import { ZAP_CELEBRATION_TIERS, type CelebrationTarget, type ConfettiPiece, type ZapCelebrationTier } from "@/src/zap-celebration";
-export function ZapCelebration({ side, tier, amount, confetti, locale = "en", solo = false }: { side: CelebrationTarget; tier: ZapCelebrationTier; amount?: number; confetti: ConfettiPiece[]; locale?: "en" | "ja"; solo?: boolean }) {
-  if (side === "center") return <TimeUpCelebration locale={locale} solo={solo} />;
+export function ZapCelebration({ side, tier, amount, confetti, solo = false }: { side: CelebrationTarget; tier: ZapCelebrationTier; amount?: number; confetti: ConfettiPiece[]; solo?: boolean }) {
+  if (side === "center") return <TimeUpCelebration />;
   return (
         <div className={`celebration ${side} ${solo ? "solo" : ""} ${ZAP_CELEBRATION_TIERS[tier].className}`} aria-hidden="true">
           <div className="zap-aura" />
