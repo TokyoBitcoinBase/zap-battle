@@ -5,7 +5,7 @@ import { createConfetti, ZAP_CELEBRATION_TIERS, zapCelebrationTier, type Celebra
 import { SpecialZapCelebration } from "@/src/ui/special-zap-celebration";
 import { ZapCelebration } from "@/src/ui/zap-celebration";
 import { useBattleSound } from "@/src/ui/use-battle-sound";
-import { createPreviewAudioChannel, playZapSound, playTimeUpSound } from "@/src/zap-audio";
+import { createPreviewAudioChannel, playZapSound, playTimeUpSound, playSpecialZapSound } from "@/src/zap-audio";
 import { TIME_UP_DURATION_MS } from "@/src/time-up";
 import { themeStyle } from "@/src/battle-theme";
 import { sessionMode } from "@/src/session-mode";
@@ -38,7 +38,7 @@ export function BattleZapSettings({ session, onChange, disabled, locale, onValid
     audioRef.current?.stop();
     setAudioMessage("");
     const tier = amount ? zapCelebrationTier(amount) : "hundred";
-    setPreview({ amount, special, side: target, tier, confetti: createConfetti(target, tier), nonce: Date.now() });
+    setPreview({ amount, special, side: target, tier, confetti: createConfetti(solo && target !== "center" ? "center" : target, tier), nonce: Date.now() });
     if (soundEnabled) {
       const channel = createPreviewAudioChannel();
       audioRef.current = channel;
@@ -46,7 +46,7 @@ export function BattleZapSettings({ session, onChange, disabled, locale, onValid
         if (audioRef.current === channel) setAudioMessage(ja ? "音声を再生できません。ブラウザの音声設定を確認してください。" : "Audio could not play. Check the browser sound settings.");
       };
       if (!channel) fail();
-      else void (target === "center" ? playTimeUpSound(channel.destination) : playZapSound(tier, channel.destination)).then(ready => { if (!ready) fail(); }).catch(fail);
+      else void (target === "center" ? playTimeUpSound(channel.destination) : special && amount ? playSpecialZapSound(amount, channel.destination) : playZapSound(tier, channel.destination)).then(ready => { if (!ready) fail(); }).catch(fail);
     }
     timer.current = setTimeout(stop, target === "center" ? TIME_UP_DURATION_MS : special && amount ? specialZapDurationMs(amount) : ZAP_CELEBRATION_TIERS[tier].durationMs);
   }
@@ -67,7 +67,7 @@ export function BattleZapSettings({ session, onChange, disabled, locale, onValid
       <label className="field"><span>{ja ? "受け取り側" : "Recipient"}</span><select aria-label={ja ? "演出の受け取り側" : "Effect recipient"} value={recipientSide} onChange={e => setSide(e.target.value as "left" | "right")}><option value="left">{solo ? ja ? "出演者" : "Performer" : "PLAYER 1"}</option>{!solo ? <option value="right">PLAYER 2</option> : null}</select></label>
       <div className="zap-preview-buttons">{[1, 10, 100, 1000, 10000].map(amount => <button className="button" type="button" key={amount} onClick={() => play(amount)}>{amount.toLocaleString("en-US")} sats</button>)}<button className="button gold" type="button" disabled={!valid || threshold === null} onClick={() => play(value, true)}>{ja ? "特別演出" : "Special effect"}{threshold !== null && valid ? ` · ${value.toLocaleString("en-US")} sats` : ""}</button><button className="button" type="button" onClick={() => play(undefined, false, "center")}>{ja ? "タイムアップ" : "Time up"}</button></div>
     </div>
-    {preview ? <div className="zap-preview-stage" style={themeStyle(session.theme)}>
+    {preview ? <div className="zap-preview-stage battle-themed" style={themeStyle(session.theme)}>
       {preview.special && preview.amount ? <SpecialZapCelebration key={preview.nonce} amount={preview.amount} side={preview.side === "right" ? "right" : "left"} recipient={session.contestants[preview.side === "right" ? "right" : "left"].displayName || (preview.side === "right" ? "PLAYER 2" : "PLAYER 1")} locale={locale} /> : <ZapCelebration key={preview.nonce} side={preview.side} tier={preview.tier} amount={preview.amount} confetti={preview.confetti} locale={locale} solo={solo} />}
       <button className="button zap-preview-close" type="button" onClick={stop}>{ja ? "プレビューを閉じる" : "Close preview"}</button>
     </div> : null}

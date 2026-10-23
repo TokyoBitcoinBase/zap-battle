@@ -5,7 +5,7 @@ import { isSpecialZap, normalizeSpecialZapThreshold, specialZapDurationMs } from
 import { SpecialZapCelebration } from "@/src/ui/special-zap-celebration";
 import { createConfetti, DEFAULT_ZAP_CELEBRATION_TIER, ZAP_CELEBRATION_TIERS, zapCelebrationTier, type CelebrationTarget, type ConfettiPiece, type ZapCelebrationTier } from "@/src/zap-celebration";
 import { ZapCelebration } from "@/src/ui/zap-celebration";
-import { playZapSound, playTimeUpSound, primeZapSound, playSoundEnabledCue } from "@/src/zap-audio";
+import { createPreviewAudioChannel, playZapSound, playTimeUpSound, playSpecialZapSound, primeZapSound, playSoundEnabledCue } from "@/src/zap-audio";
 import { useBattleSound } from "@/src/ui/use-battle-sound";
 import { TIME_UP_DURATION_MS } from "@/src/time-up";
 import { createContestantQrLoader, type ContestantQrLoader } from "@/src/contestant-qr";
@@ -182,6 +182,7 @@ export function BattleDisplay({
   const finalizedSessionRef = useRef<string | null>(null);
   const previousLifecycleRef = useRef({ id: session.id, status: session.status });
   const soundEnabledRef = useRef(false);
+  const specialAudioRef = useRef<ReturnType<typeof createPreviewAudioChannel>>(null);
   const celebrationTimerRef = useRef<number | undefined>(undefined);
   const celebrationQueueRef = useRef<CelebrationQueueItem[]>([]);
   const celebrationActiveRef = useRef(false);
@@ -212,6 +213,7 @@ export function BattleDisplay({
 
   useEffect(() => {
     soundEnabledRef.current = soundEnabled;
+    if (!soundEnabled) specialAudioRef.current?.stop();
   }, [soundEnabled]);
 
   useEffect(() => {
@@ -229,11 +231,16 @@ export function BattleDisplay({
   }, [utilityOpen]);
 
   useEffect(() => {
-    return () => window.clearTimeout(celebrationTimerRef.current);
+    return () => {
+      window.clearTimeout(celebrationTimerRef.current);
+      specialAudioRef.current?.stop();
+    };
   }, []);
 
   useEffect(() => {
     window.clearTimeout(celebrationTimerRef.current);
+    specialAudioRef.current?.stop();
+    specialAudioRef.current = null;
     celebrationQueueRef.current = [];
     celebrationActiveRef.current = false;
     setCelebrating(false);
@@ -487,11 +494,17 @@ export function BattleDisplay({
     setCelebrating(true);
     if (next.withSound && soundEnabledRef.current) {
       if (next.side === "center") void playTimeUpSound();
-      else void playZapSound(next.tier);
+      else if (next.special && next.amountSats) {
+        const channel = createPreviewAudioChannel();
+        specialAudioRef.current = channel;
+        if (channel) void playSpecialZapSound(next.amountSats, channel.destination);
+      } else void playZapSound(next.tier);
     }
 
     window.clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = window.setTimeout(() => {
+      specialAudioRef.current?.stop();
+      specialAudioRef.current = null;
       setCelebrating(false);
       setConfetti([]);
       celebrationActiveRef.current = false;

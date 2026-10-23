@@ -1,4 +1,74 @@
 import { DEFAULT_ZAP_CELEBRATION_TIER, type ZapCelebrationTier } from "@/src/zap-celebration";
+import { SPECIAL_ZAP_FIRST_LOCK_MS, SPECIAL_ZAP_LOCK_STEP_MS, SPECIAL_ZAP_ROLL_STEP_MS, specialZapRevealMs } from "@/src/special-zap";
+
+// Schedule both phases on the audio clock, using the same timing as the digits.
+export async function playSpecialZapSound(amount: number, destination?: AudioNode) {
+  const context = getAudioContext();
+  if (!context || !await resumeAudioContext(context)) return false;
+  const now = context.currentTime;
+  const revealMs = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0 : specialZapRevealMs(amount);
+  const impactAt = now + revealMs / 1000;
+  const output = context.createGain();
+  output.gain.setValueAtTime(0.5, now);
+  output.connect(destination ?? context.destination);
+
+  for (let elapsed = 0; elapsed < revealMs; elapsed += SPECIAL_ZAP_ROLL_STEP_MS) {
+    const progress = elapsed / revealMs;
+    const frequency = [880, 1175, 1047, 1397][Math.floor(elapsed / SPECIAL_ZAP_ROLL_STEP_MS) % 4] * (1 + progress * 0.35);
+    specialZapTone(context, output, "square", frequency, now + elapsed / 1000, Math.min(0.028, (revealMs - elapsed) / 1000), 0.08 + progress * 0.04);
+  }
+  // Give each locked place a distinct metallic click, leaving the last to the impact.
+  for (let elapsed = SPECIAL_ZAP_FIRST_LOCK_MS; elapsed < revealMs; elapsed += SPECIAL_ZAP_LOCK_STEP_MS) {
+    specialZapTone(context, output, "triangle", 1800, now + elapsed / 1000, 0.07, 0.18, 900);
+  }
+
+  specialZapTone(context, output, "sine", 150, impactAt, 0.85, 0.65, 42);
+  specialZapTone(context, output, "triangle", 72, impactAt, 1.1, 0.25, 36);
+  // A simultaneous chord and a bright trailing shimmer, distinct from the tier arpeggio.
+  [293.66, 440, 587.33, 739.99, 880].forEach(frequency => {
+    specialZapTone(context, output, "triangle", frequency, impactAt, 1.8, 0.12);
+  });
+  [1174.66, 1479.98, 1760].forEach((frequency, index) => {
+    specialZapTone(context, output, "sine", frequency, impactAt + 0.1 + index * 0.1, 1.25, 0.065);
+  });
+
+  const crash = context.createBufferSource();
+  const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * 0.8), context.sampleRate);
+  const samples = buffer.getChannelData(0);
+  for (let index = 0; index < samples.length; index++) samples[index] = Math.random() * 2 - 1;
+  crash.buffer = buffer;
+  const filter = context.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(6000, impactAt);
+  filter.frequency.exponentialRampToValueAtTime(500, impactAt + 0.75);
+  const crashGain = context.createGain();
+  crashGain.gain.setValueAtTime(0.0001, impactAt);
+  crashGain.gain.exponentialRampToValueAtTime(0.26, impactAt + 0.008);
+  crashGain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 0.8);
+  crash.connect(filter);
+  filter.connect(crashGain);
+  crashGain.connect(output);
+  crash.start(impactAt);
+  crash.stop(impactAt + 0.8);
+  crash.onended = () => { crash.disconnect(); filter.disconnect(); crashGain.disconnect(); };
+  return true;
+}
+
+function specialZapTone(context: AudioContext, output: AudioNode, wave: OscillatorType, frequency: number, startAt: number, duration: number, volume: number, endFrequency?: number) {
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = wave;
+  oscillator.frequency.setValueAtTime(frequency, startAt);
+  if (endFrequency) oscillator.frequency.exponentialRampToValueAtTime(endFrequency, startAt + duration * 0.8);
+  gain.gain.setValueAtTime(0.0001, startAt);
+  gain.gain.exponentialRampToValueAtTime(volume, startAt + Math.min(0.012, duration / 4));
+  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+  oscillator.connect(gain);
+  gain.connect(output);
+  oscillator.start(startAt);
+  oscillator.stop(startAt + duration);
+  oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+}
 
 export async function playZapSound(tierName: ZapCelebrationTier = DEFAULT_ZAP_CELEBRATION_TIER, destination?: AudioNode) {
   const context = getAudioContext();

@@ -5,21 +5,21 @@ import { ZAP_CELEBRATION_TIERS, type CelebrationTarget, type ConfettiPiece, type
 export function ZapCelebration({ side, tier, amount, confetti, locale = "en", solo = false }: { side: CelebrationTarget; tier: ZapCelebrationTier; amount?: number; confetti: ConfettiPiece[]; locale?: "en" | "ja"; solo?: boolean }) {
   if (side === "center") return <TimeUpCelebration locale={locale} solo={solo} />;
   return (
-        <div className={`celebration ${side} ${ZAP_CELEBRATION_TIERS[tier].className}`} aria-hidden="true">
-          <div className="zap-flash" />
-          <div className="zap-ring ring-one" />
-          {tier === "thousand" || tier === "tenThousand" ? <div className="zap-ring ring-two" /> : null}
-          {tier === "tenThousand" ? <div className="zap-ring ring-three" /> : null}
+        <div className={`celebration ${side} ${solo ? "solo" : ""} ${ZAP_CELEBRATION_TIERS[tier].className}`} aria-hidden="true">
+          <div className="zap-aura" />
           <div className="burst-text">
-            <span>{ZAP_CELEBRATION_TIERS[tier].text}</span>
-            {amount ? <small>{amount.toLocaleString()} sats</small> : null}
+            <div className="zap-wordmark">
+              <svg className="zap-bolt" viewBox="0 0 24 32" fill="currentColor"><path d="M14 0 1 18h9L7 32l16-21H13z" /></svg>
+              <span className="zap-tier-label">{ZAP_CELEBRATION_TIERS[tier].text}</span>
+            </div>
+            {amount ? <small>{amount.toLocaleString("en-US")} <span>SATS</span></small> : null}
           </div>
           {confetti.map((piece) => (
             <span
               className="confetti"
               key={piece.id}
               style={{
-                "--x": piece.x,
+                "--x": `${parseFloat(piece.x) - (solo ? 50 : side === "left" ? 25 : 75)}%`,
                 "--y": piece.y,
                 "--dx": piece.dx,
                 "--dy": piece.dy,

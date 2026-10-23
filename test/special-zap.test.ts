@@ -16,8 +16,11 @@ test("threshold saves and explicit disable survives session normalization", () =
   for (const value of [undefined, -1, 0, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1, "100000"]) assert.equal(normalizeSpecialZapThreshold(value), 100_000);
 });
 test("digits settle from units to the highest place and end at the exact amount", () => {
-  assert.deepEqual(specialZapDigits(123456, 700).map(d => d.settled), [false, false, false, false, false, true]);
-  assert.deepEqual(specialZapDigits(123456, 880).map(d => d.settled), [false, false, false, false, true, true]);
+  assert.deepEqual(specialZapDigits(123456, 900).map(d => d.settled), [false, false, false, false, false, true]);
+  assert.deepEqual(specialZapDigits(123456, 1140).map(d => d.settled), [false, false, false, false, true, true]);
+  assert.equal(specialZapRevealMs(123456), 2100);
+  assert.equal(specialZapDigits(123456, 99)[0].digit, "0");
+  assert.equal(specialZapDigits(123456, 100)[0].digit, "1");
   for (const amount of [1, 100000, 123456, Number.MAX_SAFE_INTEGER]) {
     const digits = specialZapDigits(amount, specialZapRevealMs(amount));
     assert.equal(digits.map(d => d.digit).join(""), String(amount));

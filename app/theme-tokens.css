@@ -18,18 +18,43 @@
   --theme-heading: 20px;
 }
 :root {
-  --special-gold: #ffda65;
-  --special-white: #fff7db;
-  --special-night: #080b16;
-  --special-radius: 12px;
-  --special-glow: 0 0 32px #ffbd4266;
+  /* Legend: a dark arena, warm metal lettering and a single impact of light. */
+  --special-gold: #f5c96a;
+  --special-white: #fffaf0;
+  --special-night: #040609;
+  --special-muted: #a8a9ae;
+  --special-halo: #c08a2833;
+  --special-cool-halo: #6e9aa51c;
+  --special-light: #f5c96a55;
+  --special-line: #f5c96a40;
+  --special-track: #ffffff12;
+  --special-title-font: Impact, "Arial Narrow", Arial, sans-serif;
+  --special-number-font: "SFMono-Regular", Consolas, monospace;
+  --special-copy-font: Arial, "Hiragino Sans", sans-serif;
+  --special-title-size: clamp(44px, 15vw, 144px);
+  --special-caption-size: clamp(11px, 1.15vw, 16px);
+  --special-space: clamp(20px, 4vh, 44px);
+  --special-inset: clamp(16px, 3vw, 48px);
+  --special-glow: 0 0 48px var(--special-light);
 }
 :root {
-  --special-veil: #080b16fa;
-  --special-halo: #78531577;
-  --special-ray: #ffda650d;
-  --special-light: #ffda6580;
-  --special-line: #ffda6533;
+  /* Zap overlays keep their own contrast, independent of the event theme. */
+  --zap-ink: var(--special-white);
+  --zap-accent: var(--special-gold);
+  --zap-outline: #040609;
+  --zap-text-shadow: 0 3px 2px #040609, 0 0 18px #040609cc;
+  --zap-title-font: var(--special-title-font);
+  --zap-number-font: var(--special-number-font);
+  --zap-padding: clamp(18px, 2.5vw, 32px);
+  --zap-gap: 12px;
+}
+@media (max-height: 520px) {
+  .special-zap {
+    --special-space: 12px;
+    --special-title-size: clamp(32px, 7.5vw, 76px);
+    --special-inset: 12px;
+    --special-caption-size: 10px;
+  }
 }
 :root {
   --timeup-night: #140812;

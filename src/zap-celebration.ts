@@ -63,7 +63,7 @@ export const ZAP_CELEBRATION_TIERS = {
     spreadMax: 540,
     lift: 360,
     fall: 660,
-    text: "LEGEND ZAP!"
+    text: "MASSIVE ZAP!"
   }
 } satisfies Record<ZapCelebrationTier, {
   className: string;
