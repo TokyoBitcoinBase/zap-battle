@@ -14,6 +14,10 @@ The normal 10,000-sat tier is labeled MASSIVE ZAP. LEGEND ZAP has its own two-ph
 
 Reduced-motion preference removes movement and immediately reveals the final digits; the special sound skips the rolling phase and plays the final impact immediately. Existing regular effects also use a static amount label under this preference.
 
+When Sound is enabled, the shared audio context attempts to recover from both suspended and Safari's interrupted state. Returning to the tab, restoring a page, or clicking/tapping/pressing a key retries activation silently; display and admin previews share these listeners. Enabling preview sound also requests activation directly in the input handler. A blocked resume times out after 500 ms so missed effects do not play later when permission is granted. Muting or unmounting the last sound-enabled panel removes recovery listeners. Regular Zap and Time up nodes disconnect after playback to avoid retaining completed audio graphs during long events. Safari or the operating system may still require a fresh interaction after an interruption.
+
+Pressing Start immediately shows a fresh countdown and scoreboard while the session is saved in parallel. A successful response reconciles with the shared session clock; a failed save restores the previous session and reports the failure. Session polling ignores older versions so a delayed response cannot reset the timer after Start. The timer refreshes four times per second and caps its initial value at the configured duration.
+
 Validation covers threshold boundaries, persistence/disable, exact right-to-left digit locking, normal tier selection, browser preview/save/reload, mobile/desktop rendering, receipt queue behavior and duplicate receipts. Browser fixtures intercept session/receipt responses; no actual Zap payment is performed.
 
 ## Time up and End

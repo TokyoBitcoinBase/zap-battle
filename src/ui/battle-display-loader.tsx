@@ -78,7 +78,7 @@ export function BattleDisplayLoader({
           setError("");
           setNotConfigured(false);
           setDeactivated(false);
-          setSession(json.session);
+          setSession(current => newerSession(current, json.session));
         }
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "セッションを読み込めませんでした。");
@@ -197,7 +197,7 @@ export function BattleDisplayLoader({
   return (
     <BattleDisplay
       adminEnabled={adminEnabled}
-      onSessionChange={setSession}
+      onSessionChange={next => setSession(current => newerSession(current, next))}
       onSessionDelete={(message) => {
         setDeactivationStatus(message);
         setSession(null);
@@ -207,6 +207,11 @@ export function BattleDisplayLoader({
       session={session}
     />
   );
+}
+
+function newerSession(current: ZapBattleSession | null, next: ZapBattleSession): ZapBattleSession {
+  if (current?.id === next.id && (current.updatedAt ?? 0) > (next.updatedAt ?? 0)) return current;
+  return next;
 }
 
 function removeCreateQueryParam(): void {

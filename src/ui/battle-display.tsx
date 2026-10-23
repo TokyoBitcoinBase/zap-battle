@@ -172,6 +172,7 @@ export function BattleDisplay({
   const [utilityOpen, setUtilityOpen] = useState(false);
   const [adminActionStatus, setAdminActionStatus] = useState("");
   const [adminWorking, setAdminWorking] = useState(false);
+  const [pendingStartAt, setPendingStartAt] = useState<number | null>(null);
   const [hasAdminToken, setHasAdminToken] = useState(false);
   const specialThresholdRef = useRef(normalizeSpecialZapThreshold(session.specialZapThresholdSats));
   specialThresholdRef.current = normalizeSpecialZapThreshold(session.specialZapThresholdSats);
@@ -197,17 +198,23 @@ export function BattleDisplay({
   const [celebrationAmount, setCelebrationAmount] = useState<number | undefined>(undefined);
   const persistedFinalItems = session.status === "ended" && session.finalResult ? session.finalResult.receipts : [];
   const displayItems = useMemo(
-    () => mergeZapReceiptItems([...persistedFinalItems, ...items]).filter((item) => isActiveSide(session, item.side)),
-    [items, persistedFinalItems, session.mode]
+    () => pendingStartAt === null ? mergeZapReceiptItems([...persistedFinalItems, ...items]).filter((item) => isActiveSide(session, item.side)) : [],
+    [items, persistedFinalItems, session.mode, pendingStartAt]
   );
   const leftFeedItems = displayItems.filter((item) => item.side === "left").slice(0, FEED_ITEMS_PER_SIDE);
   const rightFeedItems = displayItems.filter((item) => item.side === "right").slice(0, FEED_ITEMS_PER_SIDE);
   const copy = COPY[locale];
   const showDemoControls = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_DEMO_ZAPS === "true";
-
-  const leftStats = useMemo(() => solo
+  const visibleSession: ZapBattleSession = pendingStartAt === null ? session : {
+    ...session,
+    status: "live",
+    startsAt: pendingStartAt,
+    endsAt: pendingStartAt + session.durationSeconds,
+    finalResult: undefined
+  };
+  const leftStats = useMemo(() => pendingStartAt !== null ? calculateStats([], "left") : solo
     ? soloStats(displayItems, session.status === "ended" ? session.finalResult?.left : undefined)
-    : calculateStats(displayItems, "left"), [displayItems, solo, session.status, session.finalResult?.left]);
+    : calculateStats(displayItems, "left"), [displayItems, solo, session.status, session.finalResult?.left, pendingStartAt]);
   const rightStats = useMemo(() => calculateStats(displayItems, "right"), [displayItems]);
   const total = leftStats.totalSats + rightStats.totalSats;
   const leftRatio = total > 0 ? Math.round((leftStats.totalSats / total) * 100) : 50;
@@ -543,7 +550,12 @@ export function BattleDisplay({
   }
 
   async function startBattle() {
-    await postAdminAction("start", { session });
+    setPendingStartAt(currentSeconds());
+    try {
+      await postAdminAction("start", { session });
+    } finally {
+      setPendingStartAt(null);
+    }
   }
 
   async function togglePauseBattle() {
@@ -623,7 +635,7 @@ export function BattleDisplay({
                 : `${displayContestantName(session.contestants.right)} ${copy.leads}`}
           </p>
           </>}
-          <BattleTimer session={session} copy={copy} />
+          <BattleTimer session={visibleSession} copy={copy} />
         </div>
 
         <div className="top-actions">
@@ -678,9 +690,9 @@ export function BattleDisplay({
               </div>
             ) : null}
           </div>
-          <div className={`status ${session.status === "live" ? "live" : ""}`}>
+          <div className={`status ${visibleSession.status === "live" ? "live" : ""}`}>
             <span className="status-dot" aria-hidden="true" />
-            <strong>{session.status === "live" ? copy.live : session.status === "ended" ? copy.ended : session.status === "paused" ? copy.paused : copy.ready}</strong>
+            <strong>{visibleSession.status === "live" ? copy.live : visibleSession.status === "ended" ? copy.ended : visibleSession.status === "paused" ? copy.paused : copy.ready}</strong>
           </div>
           {showDemoControls ? (
             <div className="demo-actions" aria-label="Demo Zap controls">
@@ -719,7 +731,7 @@ export function BattleDisplay({
 
       {solo ? (
         <>
-          {session.status === "ended" ? (
+          {visibleSession.status === "ended" ? (
             <section className="solo-final" aria-label={copy.finalResult}>
               <p className="solo-thanks">{copy.soloThanks}</p>
               <FinalSideCard contestant={session.contestants.left} copy={copy} stats={leftStats} winner={false} solo />
@@ -729,11 +741,11 @@ export function BattleDisplay({
               <ContestantStage sessionId={session.id} contestant={session.contestants.left} copy={copy} stats={leftStats} loadQr={loadContestantQr} solo />
             </section>
           )}
-          <ZapFeed copy={copy} emptyText={session.status === "ended" ? copy.soloNoZaps : copy.waiting}
+          <ZapFeed copy={copy} emptyText={visibleSession.status === "ended" ? copy.soloNoZaps : copy.waiting}
             left={session.contestants.left} leftItems={leftFeedItems} right={session.contestants.right} rightItems={[]}
-            title={session.status === "ended" ? copy.finalZaps : copy.realtimeZaps} variant={session.status === "ended" ? "final" : undefined} solo />
+            title={visibleSession.status === "ended" ? copy.finalZaps : copy.realtimeZaps} variant={visibleSession.status === "ended" ? "final" : undefined} solo />
         </>
-      ) : session.status === "ended" ? (
+      ) : visibleSession.status === "ended" ? (
         <>
           <FinalResultStage
             left={session.contestants.left}
@@ -998,10 +1010,11 @@ function BattleTimer({ session, copy }: { session: ZapBattleSession; copy: typeo
   const [now, setNow] = useState(() => currentSeconds());
 
   useEffect(() => {
+    setNow(currentSeconds());
     if (session.status === "ended") return;
-    const intervalId = window.setInterval(() => setNow(currentSeconds()), 1000);
+    const intervalId = window.setInterval(() => setNow(currentSeconds()), 250);
     return () => window.clearInterval(intervalId);
-  }, [session.status]);
+  }, [session.id, session.startsAt, session.status]);
 
   const timer = timerState(session, now, copy);
 
@@ -1027,7 +1040,7 @@ function timerState(session: ZapBattleSession, now: number, copy: typeof COPY[Lo
   }
 
   const endAt = session.endsAt ?? session.startsAt + session.durationSeconds;
-  const remaining = endAt - now;
+  const remaining = Math.min(session.durationSeconds, endAt - now);
   if (remaining > 0) {
     return { label: copy.timeLeft, value: formatDuration(remaining), phase: remaining <= 30 ? "urgent" : "live" };
   }

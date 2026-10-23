@@ -76,6 +76,7 @@ export async function playZapSound(tierName: ZapCelebrationTier = DEFAULT_ZAP_CE
   const now = context.currentTime;
   const output = context.createGain();
   const tierSettings = zapSoundSettings(tierName);
+  const releaseVoice = releaseSoundOutput(output, tierSettings.notes.length + (tierName === "tenThousand" ? 1 : 0));
   output.gain.setValueAtTime(0.0001, now);
   output.gain.exponentialRampToValueAtTime(tierSettings.volume, now + 0.02);
   output.gain.exponentialRampToValueAtTime(0.0001, now + tierSettings.tail);
@@ -97,6 +98,7 @@ export async function playZapSound(tierName: ZapCelebrationTier = DEFAULT_ZAP_CE
     gain.connect(output);
     oscillator.start(startAt);
     oscillator.stop(startAt + tierSettings.noteLength + 0.04);
+    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); releaseVoice(); };
   });
 
   if (tierName === "tenThousand") {
@@ -112,6 +114,7 @@ export async function playZapSound(tierName: ZapCelebrationTier = DEFAULT_ZAP_CE
     bassGain.connect(output);
     bass.start(now);
     bass.stop(now + 0.52);
+    bass.onended = () => { bass.disconnect(); bassGain.disconnect(); releaseVoice(); };
   }
   return true;
 }
@@ -145,6 +148,7 @@ export async function playTimeUpSound(destination?: AudioNode) {
   if (!context || !await resumeAudioContext(context)) return false;
   const now = context.currentTime;
   const output = context.createGain();
+  const releaseVoice = releaseSoundOutput(output, 4);
   output.gain.setValueAtTime(0.0001, now);
   output.gain.exponentialRampToValueAtTime(0.28, now + 0.03);
   output.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
@@ -163,6 +167,7 @@ export async function playTimeUpSound(destination?: AudioNode) {
     gain.connect(output);
     oscillator.start(startAt);
     oscillator.stop(startAt + 0.18);
+    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); releaseVoice(); };
   });
   return true;
 }
@@ -173,13 +178,28 @@ export async function primeZapSound() {
 }
 
 async function resumeAudioContext(context: AudioContext): Promise<boolean> {
-  if (context.state === "suspended") await context.resume().catch(() => undefined);
-  return context.state === "running";
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Safari can report "interrupted" as well as "suspended". Call resume
+    // synchronously so a click/tap can grant playback permission even if an
+    // earlier, automatic resume is still waiting for user activation.
+    if (context.state !== "running" && context.state !== "closed") {
+      await Promise.race([
+        context.resume(),
+        new Promise<void>(resolve => { timeout = setTimeout(resolve, 500); })
+      ]);
+    }
+    return context.state === "running";
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function playSoundEnabledCue() {
   const context = getAudioContext();
-  if (!context) return;
+  if (!context || context.state !== "running") return;
   const now = context.currentTime;
   const oscillator = context.createOscillator();
   const gain = context.createGain();
@@ -193,16 +213,56 @@ export function playSoundEnabledCue() {
   gain.connect(context.destination);
   oscillator.start(now);
   oscillator.stop(now + 0.2);
+  oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
 }
 
 let sharedAudioContext: AudioContext | null = null;
+let soundRecoveryUsers = 0;
+const AUDIO_INPUT_EVENTS = ["pointerdown", "touchend", "click", "keydown"] as const;
+
+function recoverZapSound() {
+  if (soundRecoveryUsers === 0 || document.visibilityState === "hidden") return;
+  void primeZapSound();
+}
+
+// Display and admin previews share one context and one set of recovery listeners.
+// Recovery primes the context silently; it never replays a missed effect.
+export function watchZapSoundRecovery(): () => void {
+  if (typeof window === "undefined" || typeof document === "undefined") return () => {};
+  if (++soundRecoveryUsers === 1) {
+    AUDIO_INPUT_EVENTS.forEach(event => document.addEventListener(event, recoverZapSound, { capture: true, passive: true }));
+    document.addEventListener("visibilitychange", recoverZapSound);
+    window.addEventListener("focus", recoverZapSound);
+    window.addEventListener("pageshow", recoverZapSound);
+    recoverZapSound();
+  }
+  let watching = true;
+  return () => {
+    if (!watching) return;
+    watching = false;
+    if (--soundRecoveryUsers !== 0) return;
+    AUDIO_INPUT_EVENTS.forEach(event => document.removeEventListener(event, recoverZapSound, true));
+    document.removeEventListener("visibilitychange", recoverZapSound);
+    window.removeEventListener("focus", recoverZapSound);
+    window.removeEventListener("pageshow", recoverZapSound);
+  };
+}
+
+function releaseSoundOutput(output: AudioNode, voices: number) {
+  return () => { if (--voices === 0) output.disconnect(); };
+}
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return null;
   if (!sharedAudioContext || sharedAudioContext.state === "closed") {
-    sharedAudioContext = new AudioContextClass();
+    try {
+      sharedAudioContext = new AudioContextClass();
+      sharedAudioContext.addEventListener?.("statechange", recoverZapSound);
+    } catch {
+      return null;
+    }
   }
   return sharedAudioContext;
 }
