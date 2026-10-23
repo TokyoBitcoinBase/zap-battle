@@ -1,4 +1,39 @@
 :root {
+  --ui-bg: #111216;
+  --ui-surface: #1b1c21;
+  --ui-surface-raised: #25262c;
+  --ui-text: #f6f6f7;
+  --ui-muted: #b3b1ba;
+  --ui-accent: #ff7a1a;
+  --ui-line: #fffaf021;
+  --ui-left: #7ad8d1;
+  --ui-right: #e9a1a9;
+  --ui-positive: #85d4b6;
+  --ui-danger: #f3a1a7;
+  --ui-display-font: "Arial Black", "Helvetica Neue", Arial, "Hiragino Sans", sans-serif;
+  --ui-body-font: Arial, "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+  --ui-number-font: "SFMono-Regular", Consolas, monospace;
+  --ui-radius: 10px;
+  --ui-control-radius: 999px;
+  --ui-space: 24px;
+  --ui-space-large: 40px;
+  --ui-heading: clamp(40px, 5vw, 64px);
+  --ui-masthead: clamp(48px, 7vw, 94px);
+  --ui-shadow: 0 16px 40px #00000033;
+  --bg: var(--ui-bg);
+  --bg-deep: var(--ui-bg);
+  --panel: var(--ui-surface);
+  --panel-strong: var(--ui-surface-raised);
+  --text: var(--ui-text);
+  --muted: var(--ui-muted);
+  --gold: var(--ui-accent);
+  --cyan: var(--ui-left);
+  --pink: var(--ui-right);
+  --green: var(--ui-positive);
+  --line: var(--ui-line);
+  --on-accent: var(--ui-bg);
+}
+:root {
   /* Solo: one performer in the spotlight, using the existing broadcast palette. */
   --solo-accent: var(--gold);
   --solo-space: 24px;
@@ -18,15 +53,15 @@
   --theme-heading: 20px;
 }
 :root {
-  /* Legend: a dark arena, warm metal lettering and a single impact of light. */
-  --special-gold: #f5c96a;
-  --special-white: #fffaf0;
-  --special-night: #040609;
-  --special-muted: #a8a9ae;
-  --special-halo: #c08a2833;
+  /* Legend: dark event staging, white type and a bright orange impact. */
+  --special-accent: #ff7a1a;
+  --special-white: #f6f6f7;
+  --special-night: #0c0d11;
+  --special-muted: #b3b1ba;
+  --special-halo: #ff6a0029;
   --special-cool-halo: #6e9aa51c;
-  --special-light: #f5c96a55;
-  --special-line: #f5c96a40;
+  --special-light: #ff7a1a55;
+  --special-line: #ff7a1a40;
   --special-track: #ffffff12;
   --special-title-font: Impact, "Arial Narrow", Arial, sans-serif;
   --special-number-font: "SFMono-Regular", Consolas, monospace;
@@ -40,7 +75,7 @@
 :root {
   /* Zap overlays keep their own contrast, independent of the event theme. */
   --zap-ink: var(--special-white);
-  --zap-accent: var(--special-gold);
+  --zap-accent: var(--ui-accent);
   --zap-outline: #040609;
   --zap-text-shadow: 0 3px 2px #040609, 0 0 18px #040609cc;
   --zap-title-font: var(--special-title-font);

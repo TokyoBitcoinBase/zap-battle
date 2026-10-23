@@ -10,7 +10,7 @@ export type BattleTheme = {
   font: keyof typeof FONTS; backgroundImageUrl?: string; backgroundDim: number;
 };
 export const DEFAULT_THEME: BattleTheme = {
-  accent: "#ffd238", background: "#070813", text: "#f8f7ff", left: "#20d4ff", right: "#ff3e88", font: "sans", backgroundDim: 65
+  accent: "#ff7a1a", background: "#111216", text: "#f6f6f7", left: "#7ad8d1", right: "#e9a1a9", font: "sans", backgroundDim: 65
 };
 export const THEME_PRESETS: { label: string; theme: BattleTheme }[] = [
   { label: "放送用スコアボード", theme: DEFAULT_THEME },
@@ -31,10 +31,44 @@ export function normalizeTheme(input: unknown): BattleTheme {
 }
 export function themeStyle(input: unknown): CSSProperties {
   const t = normalizeTheme(input);
-  return { "--green": t.left, "--gold": t.accent, "--cyan": t.left, "--pink": t.right, "--text": t.text,
-    "--muted": `color-mix(in srgb, ${t.text} 65%, ${t.background})`, "--bg": t.background,
-    "--panel": `color-mix(in srgb, ${t.background} 90%, ${t.text})`,
+  // Correct display colors only. The saved theme and image settings remain editable as entered.
+  const initialText = readableColor(t.text, t.background, 7);
+  const panelTone = contrastRatio("#000000", t.background) > contrastRatio("#ffffff", t.background) ? "#ffffff" : "#000000";
+  const panel = mixColor(t.background, panelTone, 0.04);
+  const raised = mixColor(t.background, panelTone, 0.09);
+  const text = initialText;
+  const accent = readableColor(t.accent, t.background, 4.5);
+  const left = readableColor(t.left, t.background, 4.5);
+  const right = readableColor(t.right, t.background, 4.5);
+  return { "--green": left, "--gold": accent, "--cyan": left, "--pink": right, "--text": text,
+    "--muted": readableColor(mixColor(text, t.background, 0.3), t.background, 4.5), "--bg": t.background,
+    "--panel": panel, "--panel-strong": raised, "--line": mixColor(raised, text, 0.22),
+    "--on-accent": contrastRatio(accent, "#000000") >= contrastRatio(accent, "#ffffff") ? "#000000" : "#ffffff",
     "--theme-overlay": t.backgroundImageUrl ? `rgba(0, 0, 0, ${t.backgroundDim / 100})` : "transparent", "--battle-font": FONTS[t.font].css,
     "--theme-image": t.backgroundImageUrl ? `url(${JSON.stringify(t.backgroundImageUrl)})` : "none"
   } as CSSProperties;
+}
+
+export function contrastRatio(first: string, second: string): number {
+  const luminance = (hex: string) => {
+    const rgb = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
+      .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+  };
+  const a = luminance(first), b = luminance(second);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+function mixColor(first: string, second: string, weight: number): string {
+  return "#" + [1, 3, 5].map(index => Math.round(parseInt(first.slice(index, index + 2), 16) * (1 - weight) + parseInt(second.slice(index, index + 2), 16) * weight).toString(16).padStart(2, "0")).join("");
+}
+
+function readableColor(preferred: string, background: string, minimum: number): string {
+  if (contrastRatio(preferred, background) >= minimum) return preferred;
+  const target = contrastRatio("#000000", background) > contrastRatio("#ffffff", background) ? "#000000" : "#ffffff";
+  for (let percent = 1; percent <= 100; percent++) {
+    const candidate = mixColor(preferred, target, percent / 100);
+    if (contrastRatio(candidate, background) >= minimum) return candidate;
+  }
+  return target;
 }

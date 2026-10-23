@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { readBrowserStorage, writeBrowserStorage } from "@/src/browser-storage";
 import { BattleLauncher, type BattleLauncherLocale } from "@/src/ui/battle-launcher";
+import { LightningMark } from "@/src/ui/lightning-mark";
 
 const HOME_COPY = {
   en: {
@@ -41,7 +42,8 @@ export default function HomePage() {
     <main className="page">
       <section className="topbar home-topbar">
         <div className="title">
-          <h1>Zap Battle</h1>
+          <p className="home-kicker">LIVE LIGHTNING · BATTLE & SOLO</p>
+          <h1 className="home-wordmark"><LightningMark />Zap Battle</h1>
           <p>{copy.description}</p>
         </div>
         <div className="home-top-actions">

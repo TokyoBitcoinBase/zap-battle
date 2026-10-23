@@ -36,4 +36,4 @@ Contestant display names are public on the event screen and may also be included
 
 ## Reporting
 
-Report security issues privately to the project owner or employer repository maintainers. Do not open public issues containing secrets, private keys, tokens, or exploit details.
+Report security issues privately to the project maintainers. Do not open public issues containing secrets, private keys, tokens, or exploit details.

@@ -31,7 +31,7 @@ export function BattleThemeEditor({ session, onChange, adminToken, disabled, loc
   const busy = disabled || uploading;
   return <section className="admin-card theme-editor">
     <h2>{ja ? "表示デザイン" : "Display design"}</h2>
-    <p className="theme-note">{ja ? "このイベントだけに適用します。プレビューで調整し、保存してください。" : "Customize this event, then save to apply your changes."}</p>
+    <p className="theme-note">{ja ? "このイベントだけに適用します。プレビューで調整し、保存してください。背景に合わせて文字の明るさを自動調整します。" : "Customize this event, then save to apply. Text brightness adjusts automatically for readability."}</p>
     <fieldset disabled={busy} className="theme-controls">
       <label className="field"><span>{ja ? "プリセット" : "Preset"}</span><select aria-label={ja ? "プリセット" : "Preset"} value="" onChange={e => { const preset = THEME_PRESETS[Number(e.target.value)]; if (preset) onChange({ ...session, theme: { ...preset.theme, backgroundImageUrl: theme.backgroundImageUrl } }); }}><option value="" disabled>{ja ? "デザインを選ぶ" : "Choose a design"}</option>{THEME_PRESETS.map((p, i) => <option key={i} value={i}>{ja ? p.label : ["Broadcast", "Light event", "Photo arena"][i]}</option>)}</select></label>
       <div className="theme-colors">{(Object.keys(labels) as (keyof typeof labels)[]).filter(key => !solo || key !== "right").map(key => <label key={key}><span>{labels[key]}</span><input aria-label={labels[key]} type="color" value={theme[key]} onChange={e => update({ [key]: e.target.value })} /><code>{theme[key]}</code></label>)}</div>

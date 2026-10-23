@@ -7,6 +7,7 @@ import { createConfetti, DEFAULT_ZAP_CELEBRATION_TIER, ZAP_CELEBRATION_TIERS, za
 import { ZapCelebration } from "@/src/ui/zap-celebration";
 import { createPreviewAudioChannel, playZapSound, playTimeUpSound, playSpecialZapSound, primeZapSound, playSoundEnabledCue } from "@/src/zap-audio";
 import { useBattleSound } from "@/src/ui/use-battle-sound";
+import { LightningMark } from "@/src/ui/lightning-mark";
 import { TIME_UP_DURATION_MS } from "@/src/time-up";
 import { createContestantQrLoader, type ContestantQrLoader } from "@/src/contestant-qr";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -49,6 +50,7 @@ const COPY = {
     paused: "Paused",
     pause: "Pause",
     qrNotReady: "QR not ready",
+    checkLightning: "Check the Lightning Address",
     sound: "Sound",
     totalReceived: "Total Received",
     waiting: "Waiting for zaps...",
@@ -102,6 +104,7 @@ const COPY = {
     paused: "停止中",
     pause: "停止",
     qrNotReady: "QR未準備",
+    checkLightning: "ライトニングアドレスを確認してください",
     sound: "音",
     totalReceived: "受け取り合計",
     waiting: "Zap待機中...",
@@ -590,7 +593,7 @@ export function BattleDisplay({
 
       <header className="battle-top">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">⚡</span>
+          <LightningMark className="brand-mark" />
           <h1>{solo ? copy.solo : "Zap Battle"}</h1>
         </div>
 
@@ -970,7 +973,7 @@ function ContestantStage({
         {solo ? <p className="solo-qr-label">{copy.scanToSupport}</p> : null}
         <div className="qr-frame">
           {qrDataUrl ? <img src={qrDataUrl} alt={`${displayContestantName(contestant)} QR`} /> : null}
-          {!qrDataUrl ? <span className="qr-empty">{qrStatus || "QR"}</span> : null}
+          {!qrDataUrl ? <div className="qr-empty"><LightningMark className="qr-empty-mark" /><strong>{qrStatus ? copy.qrNotReady : "QR"}</strong><span>{contestant.lightningAddress ? copy.checkLightning : copy.lightningMissing}</span></div> : null}
         </div>
         <div className="lightning-address">{contestant.lightningAddress || copy.lightningMissing}</div>
       </div>
