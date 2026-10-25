@@ -1693,8 +1693,16 @@ select {
   border: 0;
   min-height: 0;
 }
-.solo-arena .player-head { display: grid; gap: var(--solo-space); }
-.solo-arena .player-head h2 { display: block; font-size: var(--solo-heading); line-height: 1.2; -webkit-line-clamp: unset; }
+.solo-arena .player-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--solo-space); min-width: 0; }
+.solo-arena .player-head h2 {
+  display: block;
+  font-size: var(--solo-heading);
+  line-height: 1.2;
+  -webkit-line-clamp: unset;
+  /* Italic and heavy glyphs can extend beyond their layout box. */
+  overflow: visible;
+  padding-inline: var(--solo-name-edge-space);
+}
 .solo-arena .score-mini { text-align: left; }
 .solo-arena .score-mini strong { font-size: var(--solo-total); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .solo-arena .score-mini small { font-size: var(--solo-label); }

@@ -41,6 +41,7 @@
   --solo-width: 1080px;
   --solo-radius: var(--theme-radius);
   --solo-heading: clamp(32px, 5vw, 68px);
+  --solo-name-edge-space: 0.16em;
   --solo-total: clamp(56px, 7vw, 88px);
   --solo-label: 16px;
   --solo-qr-size: clamp(240px, 32vh, 360px);
